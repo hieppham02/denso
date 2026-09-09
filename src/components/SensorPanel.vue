@@ -1,82 +1,294 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { formatTime } from '../data/simulation'
+import { formatTime } from '../mock-data/simulation'
+
 const props = defineProps({
-  samples: { type: Array, required: true }, sensor: { type: Object, required: true },
-  color: { type: String, default: '#3563e9' }, start: { type: Number, required: true },
-  end: { type: Number, required: true }, relative: Boolean,
-  marker: { type: Number, default: null }, hover: { type: Number, default: null },
+  samples: {
+    type: Array,
+    required: true
+  },
+  sensor: {
+    type: Object,
+    required: true
+  },
+  color: {
+    type: String,
+    default: '#3563e9'
+  },
+  start: {
+    type: Number,
+    required: true
+  },
+  end: {
+    type: Number,
+    required: true
+  },
+  relative: {
+    type: Boolean,
+    default: false
+  },
+  marker: {
+    type: Number,
+    default: null
+  },
+  hover: {
+    type: Number,
+    default: null
+  }
 })
+
 const emit = defineEmits(['hover'])
-const element = ref(null), width = ref(640), height = 178
-const margin = { left: 62, right: 22, top: 25, bottom: 36 }
-let observer
+
+const chartRef = ref(null)
+const chartWidth = ref(640)
+const CHART_HEIGHT = 178
+const MARGIN = {
+  left: 62,
+  right: 22,
+  top: 25,
+  bottom: 36
+}
+
+let resizeObserver = null
+
 onMounted(() => {
-  observer = new ResizeObserver(([entry]) => { width.value = Math.max(180, entry.contentRect.width) })
-  observer.observe(element.value)
+  resizeObserver = new ResizeObserver(([entry]) => {
+    chartWidth.value = Math.max(180, entry.contentRect.width)
+  })
+
+  if (chartRef.value) {
+    resizeObserver.observe(chartRef.value)
+  }
 })
-onBeforeUnmount(() => observer?.disconnect())
-const values = computed(() => props.samples.filter(s => Number.isFinite(s[props.sensor.key]) && s.time >= props.start && s.time <= props.end))
-const bounds = computed(() => {
-  if (!values.value.length) return [0, 1]
-  const list = values.value.map(s => s[props.sensor.key]), low = Math.min(...list), high = Math.max(...list)
-  const padding = Math.max((high - low) * 0.12, props.sensor.key === 'Oil_temperature' ? 0.5 : 0.025)
-  return [low - padding, high + padding]
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
 })
-const x = time => margin.left + (time - props.start) / Math.max(1, props.end - props.start) * (width.value - margin.left - margin.right)
-const y = value => height - margin.bottom - (value - bounds.value[0]) / (bounds.value[1] - bounds.value[0]) * (height - margin.top - margin.bottom)
-const path = computed(() => values.value.map((s, i) => `${i ? 'L' : 'M'}${x(s.time).toFixed(2)},${y(s[props.sensor.key]).toFixed(2)}`).join(' '))
-const ticks = computed(() => { const count = width.value < 400 ? 3 : 5; return Array.from({ length: count }, (_, i) => props.start + i * (props.end - props.start) / (count - 1)) })
-const yTicks = computed(() => Array.from({ length: 3 }, (_, i) => bounds.value[0] + i * (bounds.value[1] - bounds.value[0]) / 2))
-const selectedTime = computed(() => Math.max(props.start, Math.min(values.value.at(-1)?.time ?? props.end, props.hover ?? props.end)))
-const selectedValue = computed(() => {
-  const data = values.value
-  if (!data.length) return null
-  const index = data.findIndex(s => s.time >= selectedTime.value)
-  if (index <= 0) return (index === -1 ? data.at(-1) : data[0])[props.sensor.key]
-  const a = data[index - 1], b = data[index], fraction = (selectedTime.value - a.time) / (b.time - a.time)
-  return a[props.sensor.key] + (b[props.sensor.key] - a[props.sensor.key]) * fraction
+
+// Lọc các sample hợp lệ nằm trong khoảng [start, end]
+const validSamples = computed(() => {
+  const sensorKey = props.sensor.key
+  return props.samples.filter((item) => (
+    Number.isFinite(item[sensorKey]) &&
+    item.time >= props.start &&
+    item.time <= props.end
+  ))
 })
-function point(event) {
-  const box = element.value.getBoundingClientRect()
-  const position = (event.clientX - box.left) * width.value / box.width
-  emit('hover', Math.max(props.start, Math.min(props.end, props.start + (position - margin.left) / (width.value - margin.left - margin.right) * (props.end - props.start))))
+
+// Tính min/max và padding cho trục Y
+const yBounds = computed(() => {
+  if (!validSamples.value.length) {
+    return [0, 1]
+  }
+
+  const values = validSamples.value.map((sample) => sample[props.sensor.key])
+  const minValue = Math.min(...values)
+  const maxValue = Math.max(...values)
+  const isOilTemp = props.sensor.key === 'Oil_temperature'
+  const padding = Math.max((maxValue - minValue) * 0.12, isOilTemp ? 0.5 : 0.025)
+
+  return [minValue - padding, maxValue + padding]
+})
+
+// Hàm scale tọa độ X, Y trong SVG
+function scaleX(time) {
+  const timeRange = Math.max(1, props.end - props.start)
+  const drawableWidth = chartWidth.value - MARGIN.left - MARGIN.right
+  return MARGIN.left + ((time - props.start) / timeRange) * drawableWidth
+}
+
+function scaleY(value) {
+  const [minBound, maxBound] = yBounds.value
+  const valueRange = maxBound - minBound || 1
+  const drawableHeight = CHART_HEIGHT - MARGIN.top - MARGIN.bottom
+  return CHART_HEIGHT - MARGIN.bottom - ((value - minBound) / valueRange) * drawableHeight
+}
+
+// Đường path của biểu đồ chuỗi thời gian
+const svgPathD = computed(() => {
+  const sensorKey = props.sensor.key
+  return validSamples.value
+    .map((sample, index) => {
+      const command = index === 0 ? 'M' : 'L'
+      const px = scaleX(sample.time).toFixed(2)
+      const py = scaleY(sample[sensorKey]).toFixed(2)
+      return `${command}${px},${py}`
+    })
+    .join(' ')
+})
+
+// Các mốc tick trục X
+const xTicks = computed(() => {
+  const count = chartWidth.value < 400 ? 3 : 5
+  const step = (props.end - props.start) / (count - 1)
+  return Array.from({ length: count }, (_, index) => props.start + index * step)
+})
+
+// Các mốc tick trục Y (3 đường ngang)
+const yTicks = computed(() => {
+  const [minBound, maxBound] = yBounds.value
+  const step = (maxBound - minBound) / 2
+  return Array.from({ length: 3 }, (_, index) => minBound + index * step)
+})
+
+// Thời gian đang được trỏ/hover
+const activeTime = computed(() => {
+  const lastSampleTime = validSamples.value.at(-1)?.time ?? props.end
+  const targetTime = props.hover ?? props.end
+  return Math.max(props.start, Math.min(lastSampleTime, targetTime))
+})
+
+// Nội suy giá trị cảm biến tại thời điểm activeTime
+const activeValue = computed(() => {
+  const samples = validSamples.value
+  if (!samples.length) return null
+
+  const targetIndex = samples.findIndex((item) => item.time >= activeTime.value)
+  const sensorKey = props.sensor.key
+
+  if (targetIndex <= 0) {
+    const fallbackItem = targetIndex === -1 ? samples.at(-1) : samples[0]
+    return fallbackItem[sensorKey]
+  }
+
+  const prev = samples[targetIndex - 1]
+  const current = samples[targetIndex]
+  const fraction = (activeTime.value - prev.time) / (current.time - prev.time)
+
+  return prev[sensorKey] + (current[sensorKey] - prev[sensorKey]) * fraction
+})
+
+function handlePointerMove(event) {
+  if (!chartRef.value) return
+
+  const rect = chartRef.value.getBoundingClientRect()
+  const pointerX = (event.clientX - rect.left) * (chartWidth.value / rect.width)
+  const drawableWidth = chartWidth.value - MARGIN.left - MARGIN.right
+  const normalizedTime = props.start + ((pointerX - MARGIN.left) / drawableWidth) * (props.end - props.start)
+
+  emit('hover', Math.max(props.start, Math.min(props.end, normalizedTime)))
 }
 </script>
+
 <template>
   <article class="sensor-chart-panel">
-    <div class="chart-heading"><span>{{ sensor.key }} <small>· {{ sensor.name }}</small></span><output>{{ selectedValue
-      === null ? '—' : selectedValue.toFixed(2) }} {{ sensor.unit }}</output></div>
-    <svg ref="element" class="sensor-chart" :viewBox="`0 0 ${width} ${height}`" role="img"
-      :aria-label="`${sensor.name}, ${sensor.unit}, dữ liệu giả lập`" @pointermove="point" @click="point">
+    <div class="chart-heading">
+      <span>
+        {{ sensor.key }} <small>· {{ sensor.name }}</small>
+      </span>
+      <output>
+        {{ activeValue === null ? '—' : activeValue.toFixed(2) }} {{ sensor.unit }}
+      </output>
+    </div>
+
+    <svg
+      ref="chartRef"
+      class="sensor-chart"
+      :viewBox="`0 0 ${chartWidth} ${CHART_HEIGHT}`"
+      role="img"
+      :aria-label="`${sensor.name}, ${sensor.unit}, dữ liệu giả lập`"
+      @pointermove="handlePointerMove"
+      @click="handlePointerMove"
+    >
       <title>{{ sensor.name }} — dữ liệu giả lập</title>
-      <rect :x="margin.left" :y="margin.top" :width="width - margin.left - margin.right"
-        :height="height - margin.top - margin.bottom" fill="#fff" stroke="#e6eaf0" />
+
+      <!-- Khung biểu đồ -->
+      <rect
+        :x="MARGIN.left"
+        :y="MARGIN.top"
+        :width="chartWidth - MARGIN.left - MARGIN.right"
+        :height="CHART_HEIGHT - MARGIN.top - MARGIN.bottom"
+        fill="#ffffff"
+        stroke="#e6eaf0"
+      />
+
+      <!-- Lưới trục Y và nhãn giá trị -->
       <g v-for="tick in yTicks" :key="tick">
-        <line :x1="margin.left" :x2="width - margin.right" :y1="y(tick)" :y2="y(tick)" stroke="#edf0f5" /><text
-          :x="margin.left - 9" :y="y(tick) + 4" text-anchor="end">{{ tick.toFixed(sensor.key === 'DV_pressure' ? 3 : 1)
-          }}</text>
+        <line
+          :x1="MARGIN.left"
+          :x2="chartWidth - MARGIN.right"
+          :y1="scaleY(tick)"
+          :y2="scaleY(tick)"
+          stroke="#edf0f5"
+        />
+        <text
+          :x="MARGIN.left - 9"
+          :y="scaleY(tick) + 4"
+          text-anchor="end"
+        >
+          {{ tick.toFixed(sensor.key === 'DV_pressure' ? 3 : 1) }}
+        </text>
       </g>
+
+      <!-- Vạch cảnh báo bất thường / rò rỉ (Marker) -->
       <template v-if="marker !== null && marker >= start && marker <= end">
-        <rect :x="x(marker)" :y="margin.top"
-          :width="Math.max(0, x(Math.min(end, values.at(-1)?.time ?? end)) - x(marker))"
-          :height="height - margin.top - margin.bottom" fill="#fff6e9" />
-        <line :x1="x(marker)" :x2="x(marker)" :y1="margin.top" :y2="height - margin.bottom" stroke="#c88420"
-          stroke-dasharray="4 3" />
+        <rect
+          :x="scaleX(marker)"
+          :y="MARGIN.top"
+          :width="Math.max(0, scaleX(Math.min(end, validSamples.at(-1)?.time ?? end)) - scaleX(marker))"
+          :height="CHART_HEIGHT - MARGIN.top - MARGIN.bottom"
+          fill="#fff6e9"
+        />
+        <line
+          :x1="scaleX(marker)"
+          :x2="scaleX(marker)"
+          :y1="MARGIN.top"
+          :y2="CHART_HEIGHT - MARGIN.bottom"
+          stroke="#c88420"
+          stroke-dasharray="4 3"
+        />
       </template>
-      <path :d="path" fill="none" :stroke="color" stroke-width="1.8" />
-      <g v-if="selectedValue !== null">
-        <line :x1="x(selectedTime)" :x2="x(selectedTime)" :y1="margin.top" :y2="height - margin.bottom"
-          stroke="#a7b2c6" />
-        <circle :cx="x(selectedTime)" :cy="y(selectedValue)" r="3" :fill="color" />
+
+      <!-- Đường dữ liệu chính -->
+      <path
+        :d="svgPathD"
+        fill="none"
+        :stroke="color"
+        stroke-width="1.8"
+      />
+
+      <!-- Con trỏ hover và điểm tròn giá trị đối chiếu -->
+      <g v-if="activeValue !== null">
+        <line
+          :x1="scaleX(activeTime)"
+          :x2="scaleX(activeTime)"
+          :y1="MARGIN.top"
+          :y2="CHART_HEIGHT - MARGIN.bottom"
+          stroke="#a7b2c6"
+        />
+        <circle
+          :cx="scaleX(activeTime)"
+          :cy="scaleY(activeValue)"
+          r="3"
+          :fill="color"
+        />
       </g>
-      <text v-for="(tick, i) in ticks" :key="tick" :x="x(tick)" :y="height - 18"
-        :text-anchor="i === 0 ? 'start' : i === ticks.length - 1 ? 'end' : 'middle'">{{ formatTime(tick, relative)
-        }}</text>
-      <text :x="margin.left" y="13">{{ sensor.unit }}</text><text :x="width - margin.right" :y="height - 2"
-        text-anchor="end">{{
-          relative ? 'Phút:giây' : 'Giờ:phút' }}</text>
-      <text v-if="!values.length" :x="width / 2" y="85" text-anchor="middle">Chưa có dữ liệu</text>
+
+      <!-- Mốc thời gian trục X -->
+      <text
+        v-for="(tick, index) in xTicks"
+        :key="tick"
+        :x="scaleX(tick)"
+        :y="CHART_HEIGHT - 18"
+        :text-anchor="index === 0 ? 'start' : index === xTicks.length - 1 ? 'end' : 'middle'"
+      >
+        {{ formatTime(tick, relative) }}
+      </text>
+
+      <!-- Đơn vị đo -->
+      <text :x="MARGIN.left" y="13">{{ sensor.unit }}</text>
+      <text :x="chartWidth - MARGIN.right" :y="CHART_HEIGHT - 2" text-anchor="end">
+        {{ relative ? 'Phút:giây' : 'Giờ:phút' }}
+      </text>
+
+      <text
+        v-if="!validSamples.length"
+        :x="chartWidth / 2"
+        y="85"
+        text-anchor="middle"
+      >
+        Chưa có dữ liệu
+      </text>
     </svg>
   </article>
 </template>
