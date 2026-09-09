@@ -103,7 +103,7 @@ function handleTabChange(tabId) {
 
 <template>
   <!-- Header & Navigation -->
-  <div class="row between">
+  <div class="flex flex-wrap items-center gap-3 justify-between">
     <button class="text-button" @click="emit('back')">← Danh sách cảnh báo</button>
     <button class="text-button" @click="emit('device', incident.machine)">
       Theo dõi cảm biến {{ incident.machine }} ↗
@@ -116,7 +116,7 @@ function handleTabChange(tabId) {
       <h1>{{ incident.machine }} · Chi tiết sự cố</h1>
       <p>{{ incident.title }} · Phát hiện {{ incident.time }}</p>
     </div>
-    <div class="row">
+    <div class="flex flex-wrap items-center gap-3">
       <span class="badge" :class="incident.risk === 'Cao' ? 'red' : 'amber'">
         {{ incident.risk }}
       </span>
@@ -137,15 +137,15 @@ function handleTabChange(tabId) {
     </button>
   </div>
 
-  <p v-if="errorMessage" role="alert" class="error">{{ errorMessage }}</p>
+  <p v-if="errorMessage" role="alert" class="text-red-700">{{ errorMessage }}</p>
 
   <!-- TAB 1: Phân tích & Đề xuất -->
   <template v-if="activeTab === 'analysis'">
-    <div class="detail-grid">
+    <div class="grid items-start gap-5 min-[1201px]:grid-cols-[1.2fr_1fr]">
       <DeviceSensors :samples="historyBefore" :start="-1800" :end="0" :marker="-300" compact />
       
-      <section class="panel">
-        <div class="row between">
+      <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+        <div class="flex flex-wrap items-center gap-3 justify-between">
           <h2>Kết quả phát hiện bất thường</h2>
           <span class="badge">Minh họa</span>
         </div>
@@ -186,7 +186,7 @@ function handleTabChange(tabId) {
       </section>
     </div>
 
-    <section class="panel action-panel">
+    <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 mt-5">
       <h2>Phương án đề xuất</h2>
       <p>{{ incident.action }}</p>
       
@@ -204,8 +204,8 @@ function handleTabChange(tabId) {
 
   <!-- TAB 2: Phê duyệt -->
   <template v-else-if="activeTab === 'approval'">
-    <div v-if="incident.state === 'Chờ duyệt'" class="two-columns">
-      <section class="panel">
+    <div v-if="incident.state === 'Chờ duyệt'" class="grid gap-5 min-[801px]:grid-cols-2">
+      <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
         <h2>Quyết định của trưởng ca</h2>
         <div class="notice">{{ incident.action }}</div>
         <p>Duyệt đề xuất là giao việc kiểm tra cho kỹ thuật viên; không tự gửi lệnh điều khiển máy.</p>
@@ -215,14 +215,14 @@ function handleTabChange(tabId) {
           <textarea v-model="decisionNote" placeholder="Bắt buộc khi từ chối hoặc chỉnh sửa" />
         </label>
         
-        <div class="row">
+        <div class="flex flex-wrap items-center gap-3">
           <button class="button primary" @click="promptDecision('approve')">Duyệt đề xuất</button>
           <button class="button danger" @click="promptDecision('reject')">Từ chối</button>
           <button class="button" @click="promptDecision('edit')">Chỉnh sửa</button>
         </div>
       </section>
       
-      <section class="panel">
+      <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
         <h2>Thông tin phê duyệt</h2>
         <div class="metric-line"><span>Người duyệt</span><span>Nguyễn An · Trưởng ca</span></div>
         <div class="metric-line"><span>Gửi đề xuất lúc</span><span>{{ incident.time }}</span></div>
@@ -230,7 +230,7 @@ function handleTabChange(tabId) {
       </section>
     </div>
 
-    <section v-else class="panel">
+    <section v-else class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
       <h2>{{ ['Đang xử lý', 'Đang theo dõi', 'Đã đóng'].includes(incident.state) ? 'Đề xuất đã được duyệt' : 'Chưa có đề xuất chờ duyệt' }}</h2>
       <p>Trạng thái hiện tại: {{ incident.state }}.</p>
       <button class="button" @click="activeTab = 'timeline'">Xem lịch sử quyết định</button>
@@ -239,8 +239,8 @@ function handleTabChange(tabId) {
 
   <!-- TAB 3: Theo dõi sau xử lý -->
   <template v-else-if="activeTab === 'verification'">
-    <section class="panel">
-      <div class="row between">
+    <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+      <div class="flex flex-wrap items-center gap-3 justify-between">
         <h2>Theo dõi sau xử lý</h2>
         <span class="badge" :class="{ 'green': incident.state === 'Đã đóng' }">{{ incident.state }}</span>
       </div>
@@ -249,7 +249,7 @@ function handleTabChange(tabId) {
         <p>{{ incident.machine }} · Cửa sổ theo dõi 20 phút (mô phỏng)</p>
         <progress :value="incident.progress" max="20" aria-label="Tiến trình theo dõi sau xử lý" />
         
-        <div class="row between">
+        <div class="flex flex-wrap items-center gap-3 justify-between">
           <span>{{ incident.progress }} / 20 phút</span>
           <button v-if="incident.state === 'Đang xử lý'" class="button primary" @click="executeTransition('start')">Xác nhận đã thực hiện (demo)</button>
           <button v-if="incident.state === 'Đang theo dõi' && incident.progress < 20" class="button primary" @click="executeTransition('advance')">Tiến thêm 5 phút (demo)</button>
@@ -257,7 +257,7 @@ function handleTabChange(tabId) {
         
         <template v-if="incident.state === 'Đang theo dõi' && incident.progress === 20">
           <div class="notice">Đã đủ cửa sổ theo dõi minh họa. Chọn kết quả để thử hai nhánh xử lý.</div>
-          <div class="row">
+          <div class="flex flex-wrap items-center gap-3">
             <button class="button primary" @click="finishVerification('close')">Ổn định → Đóng sự cố</button>
             <button class="button danger" @click="finishVerification('reanalyze')">Vẫn bất thường → Phân tích lại</button>
           </div>
@@ -272,10 +272,10 @@ function handleTabChange(tabId) {
       </template>
     </section>
     
-    <section v-if="incident.progress > 0" class="panel action-panel">
+    <section v-if="incident.progress > 0" class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 mt-5">
       <h2>So sánh trước / sau · dữ liệu mẫu</h2>
       <p>Kết quả mẫu minh họa trường hợp ổn định. Kỹ thuật viên vẫn cần xác nhận kết quả thực tế.</p>
-      <div class="comparison">
+      <div class="grid gap-5 min-[1201px]:grid-cols-2">
         <div>
           <h3>Trước xử lý</h3>
           <DeviceSensors :samples="historyBefore" :start="-900" :end="0" :marker="-300" compact />
@@ -289,7 +289,7 @@ function handleTabChange(tabId) {
   </template>
 
   <!-- TAB 4: Lịch sử -->
-  <section v-else class="panel">
+  <section v-else class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
     <h2>Lịch sử {{ incident.id }} · {{ incident.machine }}</h2>
     <ol class="timeline">
       <li v-for="(event, index) in incident.history" :key="index">
@@ -312,9 +312,9 @@ function handleTabChange(tabId) {
     </label>
     <p v-else>{{ decisionNote || 'Không có ghi chú bổ sung.' }}</p>
     
-    <p v-if="errorMessage" role="alert" class="error">{{ errorMessage }}</p>
+    <p v-if="errorMessage" role="alert" class="text-red-700">{{ errorMessage }}</p>
     
-    <div class="row">
+    <div class="flex flex-wrap items-center gap-3">
       <button class="button" @click="confirmDialog.close()">Quay lại</button>
       <button class="button primary" @click="confirmDecision">
         {{ pendingDecision === 'edit' ? 'Lưu phương án' : 'Xác nhận' }}

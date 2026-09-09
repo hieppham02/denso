@@ -40,7 +40,7 @@ const documentDialogRef = ref(null)
 const documentType = ref('sop')
 
 // Hook Mô phỏng
-const { session, running, scenario, speed, pause, reset, play } = useSimulation()
+const { session, isRunning, currentScenario, playbackSpeed, pause, reset, play } = useSimulation()
 
 // Computed Properties: Xử lý dữ liệu hiển thị
 const openIncidents = computed(() => incidentsList.value.filter(a => a.state !== 'Đã đóng'))
@@ -73,17 +73,17 @@ function navigateTo(nextView, id = '', tab = 'analysis') {
 
 function parseHashRoute() {
   const [nextView, id, tab] = window.location.hash.slice(1).split('/')
-  
+
   currentView.value = ALLOWED_ROUTES.includes(nextView) ? nextView : 'overview'
-  
+
   if (['device', 'simulation'].includes(nextView) && devices.some(d => d.id === id)) {
     deviceId.value = id
   }
-  
+
   if (nextView === 'incident' && incidentsList.value.some(a => a.id === id)) {
     incidentId.value = id
   }
-  
+
   const validTabs = ['analysis', 'approval', 'verification', 'timeline']
   incidentTab.value = validTabs.includes(tab) ? tab : 'analysis'
   isMenuOpen.value = false
@@ -117,7 +117,7 @@ watch(currentView, (newView) => {
   if (newView !== 'simulation') pause()
 })
 watch(deviceId, () => reset(deviceId.value))
-watch(scenario, () => reset(deviceId.value))
+watch(currentScenario, () => reset(deviceId.value))
 
 // Lifecycle
 onMounted(() => {
@@ -130,27 +130,27 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="block min-h-screen min-[801px]:flex">
     <a class="skip-link" href="#main-content">Đến nội dung chính</a>
-    
+
     <!-- Sidebar -->
     <aside class="sidebar" :class="{ open: isMenuOpen }">
       <a class="brand" href="#overview">
         <span></span>FactoryDoctor
       </a>
       <p class="sidebar-label">DENSO · NHÓM A1</p>
-      
+
       <nav aria-label="Điều hướng chính">
-        <a 
-          v-for="nav in NAVIGATION_MENU" 
-          :key="nav.id" 
+        <a
+          v-for="nav in NAVIGATION_MENU"
+          :key="nav.id"
           :href="`#${nav.id}`"
-          :class="{ active: activeNavMenu === nav.id }" 
+          :class="{ active: activeNavMenu === nav.id }"
           :aria-current="activeNavMenu === nav.id ? 'page' : undefined"
         >
           <component :is="nav.icon" :size="18" aria-hidden="true" />
           {{ nav.label }}
-          <span 
+          <span
             v-if="nav.id === 'approvals' && pendingIncidents.length"
             class="badge amber"
           >
@@ -158,21 +158,21 @@ onBeforeUnmount(() => {
           </span>
         </a>
       </nav>
-      
+
       <div class="sidebar-bottom">
         <small>CA SÁNG · 08:00–16:00</small>
         <p>Nguyễn An<small>Trưởng ca bảo trì · Demo</small></p>
       </div>
     </aside>
 
-    <div class="main-shell">
+    <div class="min-w-0 flex-1">
       <!-- Topbar -->
       <header class="topbar">
-        <div class="row">
-          <button 
-            class="icon-button mobile-toggle" 
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="icon-button mobile-toggle"
             :aria-expanded="isMenuOpen"
-            aria-label="Mở hoặc đóng menu" 
+            aria-label="Mở hoặc đóng menu"
             @click="isMenuOpen = !isMenuOpen"
           >
             <Menu :size="20" />
@@ -180,9 +180,9 @@ onBeforeUnmount(() => {
           <Building2 :size="18" aria-hidden="true" />
           <span>Nhà máy A1</span>
           <ChevronRight :size="14" aria-hidden="true" />
-          <span class="muted">{{ pageTitle }}</span>
+          <span class="text-slate-500">{{ pageTitle }}</span>
         </div>
-        <div class="row">
+        <div class="flex flex-wrap items-center gap-3">
           <span class="demo-label">DỮ LIỆU MẪU</span>
           <span class="avatar">AN</span>
         </div>
@@ -199,7 +199,7 @@ onBeforeUnmount(() => {
             </div>
             <button class="button primary" @click="navigateTo('alerts')">Xem cảnh báo</button>
           </div>
-          
+
           <div class="kpis">
             <article>
               <span>Cảnh báo đang mở</span>
@@ -222,28 +222,28 @@ onBeforeUnmount(() => {
               <small>Phát hiện → tiếp nhận · Mẫu</small>
             </article>
           </div>
-          
-          <div class="overview-grid">
+
+          <div class="grid items-start gap-5 min-[1201px]:grid-cols-[1.15fr_1fr]">
             <FleetMap :incidents="incidentsList" @select="handleOpenDevice" />
-            <div class="stack">
-              <section class="panel">
+            <div class="grid min-w-0 content-start gap-[18px]">
+              <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
                 <h2>Cảnh báo phát sinh</h2>
-                <SensorPanel 
-                  :samples="trendSamples" 
+                <SensorPanel
+                  :samples="trendSamples"
                   :sensor="{ key: 'count', name: '8 giờ gần nhất', unit: 'cảnh báo' }"
-                  :start="-25200" 
-                  :end="0" 
+                  :start="-25200"
+                  :end="0"
                 />
               </section>
-              <section class="panel">
-                <div class="row between">
+              <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+                <div class="flex flex-wrap items-center gap-3 justify-between">
                   <h2>Cần chú ý ngay</h2>
                   <span class="badge amber">{{ openIncidents.length }} mở</span>
                 </div>
                 <div v-for="incident in openIncidents" :key="incident.id" class="feed-row">
                   <div>
                     <button class="text-button" @click="handleOpenIncident(incident.id)">
-                      {{ incident.machine }} <span class="muted">/ Dây chuyền {{ incident.line }}</span>
+                      {{ incident.machine }} <span class="text-slate-500">/ Dây chuyền {{ incident.line }}</span>
                     </button>
                     <p>{{ incident.title }}</p>
                     <small>{{ incident.time }} · {{ incident.state }}</small>
@@ -252,7 +252,7 @@ onBeforeUnmount(() => {
                     {{ incident.risk }}
                   </span>
                 </div>
-                <p v-if="!openIncidents.length" class="empty">Không còn cảnh báo đang mở.</p>
+                <p v-if="!openIncidents.length" class="p-7 text-center text-slate-500">Không còn cảnh báo đang mở.</p>
               </section>
             </div>
           </div>
@@ -278,16 +278,16 @@ onBeforeUnmount(() => {
               <h1>{{ deviceId }} · Theo dõi cảm biến</h1>
               <p>Dây chuyền {{ deviceLine }} · Máy nén khí</p>
             </div>
-            <div class="row">
+            <div class="flex flex-wrap items-center gap-3">
               <select :value="deviceId" aria-label="Chọn thiết bị" @change="handleSelectDevice">
                 <option v-for="d in devices" :key="d.id">{{ d.id }}</option>
               </select>
               <button class="button primary" @click="handleOpenSimulation">Mô phỏng thiết bị</button>
             </div>
           </div>
-          
+
           <div class="device-strip">
-            <div class="row">
+            <div class="flex flex-wrap items-center gap-3">
               <span class="badge" :class="deviceIncident ? 'amber' : 'green'">
                 {{ deviceIncident ? 'Có cảnh báo' : 'Bình thường' }}
               </span>
@@ -298,27 +298,27 @@ onBeforeUnmount(() => {
             </button>
             <small v-else>Không có cảnh báo đang mở</small>
           </div>
-          
-          <div class="row between range-row">
+
+          <div class="flex flex-wrap items-center gap-3 justify-between mb-4">
             <h2>Dữ liệu vận hành</h2>
             <div class="range-buttons">
-              <button 
-                v-for="n in [15, 30, 60]" 
-                :key="n" 
+              <button
+                v-for="n in [15, 30, 60]"
+                :key="n"
                 :class="{ active: windowMinutes === n }"
-                :aria-pressed="windowMinutes === n" 
+                :aria-pressed="windowMinutes === n"
                 @click="windowMinutes = n"
               >
                 {{ n }} phút
               </button>
             </div>
           </div>
-          
-          <DeviceSensors 
-            :samples="deviceHistory" 
-            :start="-windowMinutes * 60" 
+
+          <DeviceSensors
+            :samples="deviceHistory"
+            :start="-windowMinutes * 60"
             :end="0"
-            :marker="deviceIncident ? -300 : null" 
+            :marker="deviceIncident ? -300 : null"
           />
         </template>
 
@@ -343,9 +343,9 @@ onBeforeUnmount(() => {
             </div>
             <span class="badge">Không điều khiển thiết bị</span>
           </div>
-          <section class="panel simulation-controls">
-            <div class="row between">
-              <div class="row">
+          <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 simulation-controls">
+            <div class="flex flex-wrap items-center gap-3 justify-between">
+              <div class="flex flex-wrap items-center gap-3">
                 <label>
                   Thiết bị
                   <select :value="deviceId" @change="handleSelectDevice">
@@ -354,21 +354,21 @@ onBeforeUnmount(() => {
                 </label>
                 <label>
                   Kịch bản
-                  <select v-model="scenario">
+                  <select v-model="currentScenario">
                     <option value="normal">Bình thường</option>
                     <option value="leak">Rò khí</option>
                   </select>
                 </label>
                 <label>
                   Tốc độ
-                  <select v-model.number="speed">
+                  <select v-model.number="playbackSpeed">
                     <option v-for="n in [1, 2, 5]" :key="n" :value="n">{{ n }}×</option>
                   </select>
                 </label>
               </div>
-              <div class="row">
-                <button class="button primary" @click="running ? pause() : play(deviceId)">
-                  {{ running ? 'Tạm dừng' : 'Chạy mô phỏng' }}
+              <div class="flex flex-wrap items-center gap-3">
+                <button class="button primary" @click="isRunning ? pause() : play(deviceId)">
+                  {{ isRunning ? 'Tạm dừng' : 'Chạy mô phỏng' }}
                 </button>
                 <button class="button" @click="reset(deviceId)">Chạy lại</button>
               </div>
@@ -376,25 +376,25 @@ onBeforeUnmount(() => {
             <div class="simulation-status">
               <strong>{{ formatTime(session.elapsed, true) }}</strong>
               <span>
-                {{ session.elapsed >= SIMULATION_DURATION ? 'Đã hoàn tất 15 phút' : running ? 'Đang chạy' : 'Đang tạm dừng' }} 
-                · 1 giây thực = {{ 5 * speed }} giây mô phỏng
+                {{ session.elapsed >= SIMULATION_DURATION ? 'Đã hoàn tất 15 phút' : isRunning ? 'Đang chạy' : 'Đang tạm dừng' }}
+                · 1 giây thực = {{ 5 * playbackSpeed }} giây mô phỏng
               </span>
-              <span class="badge" :class="scenario === 'leak' && session.elapsed >= LEAK_START ? 'amber' : 'green'">
-                {{ scenario === 'leak' && session.elapsed >= LEAK_START ? 'Đang rò khí' : 'Bình thường' }} 
+              <span class="badge" :class="currentScenario === 'leak' && session.elapsed >= LEAK_START ? 'amber' : 'green'">
+                {{ currentScenario === 'leak' && session.elapsed >= LEAK_START ? 'Đang rò khí' : 'Bình thường' }}
                 · {{ latestSimSample.loaded ? 'Động cơ nén' : 'Động cơ nghỉ' }}
               </span>
             </div>
             <p class="caption">
-              {{ scenario === 'leak' ? 'Rò khí bắt đầu tại 01:00. Vạch cam đánh dấu thời điểm bắt đầu.' : 'Chu kỳ nạp và tiêu thụ khí bình thường.' }} 
+              {{ currentScenario === 'leak' ? 'Rò khí bắt đầu tại 01:00. Vạch cam đánh dấu thời điểm bắt đầu.' : 'Chu kỳ nạp và tiêu thụ khí bình thường.' }}
               Đổi thiết bị hoặc kịch bản sẽ đưa mô phỏng về đầu.
             </p>
           </section>
-          <DeviceSensors 
-            :samples="session.samples" 
+          <DeviceSensors
+            :samples="session.samples"
             :start="Math.max(-300, session.elapsed - 900)"
-            :end="Math.max(60, session.elapsed)" 
-            :marker="scenario === 'leak' && session.elapsed >= LEAK_START ? LEAK_START : null"
-            relative 
+            :end="Math.max(60, session.elapsed)"
+            :marker="currentScenario === 'leak' && session.elapsed >= LEAK_START ? LEAK_START : null"
+            relative
           />
         </template>
 
@@ -406,22 +406,22 @@ onBeforeUnmount(() => {
               <p>Xem bằng chứng và quyết định phương án trước khi giao việc.</p>
             </div>
           </div>
-          <div class="stack">
-            <section v-for="a in pendingIncidents" :key="a.id" class="panel">
-              <div class="row between">
+          <div class="grid min-w-0 content-start gap-[18px]">
+            <section v-for="a in pendingIncidents" :key="a.id" class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+              <div class="flex flex-wrap items-center gap-3 justify-between">
                 <h2>{{ a.machine }} / {{ a.id }} · Dây chuyền {{ a.line }}</h2>
                 <span class="badge" :class="a.risk === 'Cao' ? 'red' : 'amber'">{{ a.risk }}</span>
               </div>
               <p>{{ a.title }}</p>
-              <div class="row between">
+              <div class="flex flex-wrap items-center gap-3 justify-between">
                 <small>Chờ duyệt từ {{ a.time }}</small>
                 <button class="button primary" @click="handleOpenIncident(a.id, 'approval')">Xem & quyết định →</button>
               </div>
             </section>
-            <section v-if="!pendingIncidents.length" class="panel empty">Đã xử lý hết đề xuất chờ duyệt.</section>
+            <section v-if="!pendingIncidents.length" class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 p-7 text-center text-slate-500">Đã xử lý hết đề xuất chờ duyệt.</section>
           </div>
         </template>
-        
+
         <template v-else-if="currentView === 'history'">
           <div class="page-heading">
             <div>
@@ -432,14 +432,14 @@ onBeforeUnmount(() => {
           <AlertTable :incidents="incidentsList" @select="handleOpenIncident($event, 'timeline')" />
         </template>
 
-        <IncidentWorkspace 
-          v-else-if="currentView === 'incident'" 
-          :key="selectedIncident.id" 
+        <IncidentWorkspace
+          v-else-if="currentView === 'incident'"
+          :key="selectedIncident.id"
           :incident="selectedIncident"
-          :initial-tab="incidentTab" 
-          @device="handleOpenDevice" 
-          @back="navigateTo('alerts')" 
-          @document="handleOpenDocument" 
+          :initial-tab="incidentTab"
+          @device="handleOpenDevice"
+          @back="navigateTo('alerts')"
+          @document="handleOpenDocument"
         />
 
         <template v-else-if="currentView === 'knowledge'">
@@ -449,13 +449,13 @@ onBeforeUnmount(() => {
               <p>Nguồn tham chiếu minh họa cho bước phân tích và đề xuất.</p>
             </div>
           </div>
-          <div class="two-columns">
-            <section class="panel">
+          <div class="grid gap-5 min-[801px]:grid-cols-2">
+            <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
               <h2>SOP-07 · Kiểm tra khí nén</h2>
               <p>Quy trình thao tác chuẩn (SOP) · Bản mẫu</p>
               <button class="source" @click="handleOpenDocument('sop')">Mở tài liệu ↗</button>
             </section>
-            <section class="panel">
+            <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
               <h2>SC-011 · Sự cố tham khảo</h2>
               <p>Hồ sơ bảo trì · Bản mẫu</p>
               <button class="source" @click="handleOpenDocument('case')">Xem hồ sơ ↗</button>
@@ -476,7 +476,7 @@ onBeforeUnmount(() => {
         {{ documentType === 'sop' ? 'SOP-07 · Quy trình mẫu' : 'SC-011 · Hồ sơ mẫu' }}
       </h2>
       <p class="badge amber">Tài liệu giả lập để duyệt UI</p>
-      
+
       <template v-if="documentType === 'sop'">
         <p>Phạm vi: kiểm tra dấu hiệu bất thường của hệ thống khí nén.</p>
         <p>Người thực hiện: kỹ thuật viên được phân công, tham chiếu quy trình bảo trì đã phê duyệt tại nhà máy.</p>
@@ -486,8 +486,8 @@ onBeforeUnmount(() => {
         <p>Máy APU-03: áp suất giảm và chu kỳ nén tăng. Hồ sơ mẫu ghi nhận kiểm tra hiện trường, xử lý theo quy trình và theo dõi lại 20 phút.</p>
         <p>Đây không phải nhật ký lỗi thật của MetroPT-3.</p>
       </template>
-      
-      <div class="row">
+
+      <div class="flex flex-wrap items-center gap-3">
         <button class="button" @click="documentDialogRef.close()">Đóng</button>
       </div>
     </dialog>

@@ -8,7 +8,7 @@ import { Box, Maximize2 } from 'lucide-vue-next'
 </script>
 
 <template>
-  <section class="panel viewport-panel" aria-labelledby="machine-heading">
+  <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 viewport-panel" aria-labelledby="machine-heading">
     <!-- Header -->
     <div class="panel-heading">
       <div>

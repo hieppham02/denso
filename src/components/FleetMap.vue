@@ -56,26 +56,26 @@ function handleSelectDevice(deviceId) {
 </script>
 
 <template>
-  <section class="panel">
-    <div class="row between">
+  <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+    <div class="flex flex-wrap items-center gap-3 justify-between">
       <h2>Thiết bị theo dây chuyền</h2>
-      <span class="muted">24 máy · 4 dây chuyền</span>
+      <span class="text-slate-500">24 máy · 4 dây chuyền</span>
     </div>
 
-    <div class="line-list">
+    <div class="mt-5 grid gap-4">
       <section
         v-for="line in PRODUCTION_LINES"
         :key="line"
-        class="production-line"
+        class="rounded-lg border border-slate-100 p-4"
       >
-        <div class="row between">
+        <div class="flex flex-wrap items-center gap-3 justify-between">
           <h3>Dây chuyền {{ line }}</h3>
           <small>
             {{ countAttentionMachines(line) }} máy cần chú ý · {{ getDevicesByLine(line).length }} máy
           </small>
         </div>
 
-        <div class="machine-grid">
+        <div class="mt-3 grid grid-cols-3 gap-2 min-[481px]:grid-cols-6">
           <button
             v-for="device in getDevicesByLine(line)"
             :key="device.id"

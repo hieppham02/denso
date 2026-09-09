@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createIncidents, transitionIncident } from '../src/data/incidents.js'
+import { createIncidents, transitionIncident } from '../src/mock-data/incidents.js'
 test('Approval cannot skip execution or verification window',()=>{
   const incident=createIncidents()[0]
   assert.throws(()=>transitionIncident(incident,'start'))

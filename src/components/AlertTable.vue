@@ -42,7 +42,7 @@ function handleSelect(id) {
 </script>
 
 <template>
-  <section class="panel">
+  <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
     <div v-if="filters" class="filters">
       <input
         v-model="search"
@@ -73,7 +73,7 @@ function handleSelect(id) {
       </select>
     </div>
 
-    <div class="table-wrap">
+    <div class="overflow-x-auto">
       <table>
         <thead>
           <tr>
@@ -126,7 +126,7 @@ function handleSelect(id) {
       </table>
     </div>
 
-    <p v-if="!filteredIncidents.length" class="empty">
+    <p v-if="!filteredIncidents.length" class="p-7 text-center text-slate-500">
       Không có sự cố phù hợp bộ lọc.
     </p>
 

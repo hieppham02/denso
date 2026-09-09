@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, useId } from 'vue'
 import SensorPanel from './SensorPanel.vue'
 import { analogSensors, digitalSensors, formatTime } from '../mock-data/simulation.js'
 
@@ -34,6 +34,9 @@ const props = defineProps({
 const thirdSensorKey = ref('Motor_current')
 const hoveredTime = ref(null)
 
+// Mỗi cụm ba biểu đồ có group riêng; trước/sau xử lý không tác động lẫn nhau.
+const chartGroup = `device-sensors-${useId()}`
+
 const CHART_COLORS = ['#3563e9', '#159885', '#9370c9']
 
 // Cố định 2 biểu đồ đầu là TP2, TP3; biểu đồ thứ 3 do người dùng chọn
@@ -59,7 +62,7 @@ const activeHoverTime = computed(() => {
 
 // Reset hover khi khoảng thời gian hoặc dữ liệu thay đổi
 watch(
-  () => [props.samples, props.start, props.end], 
+  () => [props.samples, props.start, props.end],
   () => { hoveredTime.value = null }
 )
 
@@ -69,19 +72,19 @@ function handleHover(time) {
 </script>
 
 <template>
-  <div class="stack">
+  <div class="grid min-w-0 content-start gap-[18px]">
     <!-- Block 1: Thông số Analog hiện tại (ẩn nếu ở chế độ compact) -->
-    <div v-if="!compact && latestSample" class="sensor-values">
-      <div 
-        v-for="sensor in analogSensors" 
-        :key="sensor.key" 
+    <div v-if="!compact && latestSample" class="grid grid-cols-2 gap-3 min-[801px]:grid-cols-4 min-[1550px]:grid-cols-7">
+      <div
+        v-for="sensor in analogSensors"
+        :key="sensor.key"
         class="sensor-value"
       >
-        <span class="muted">{{ sensor.name }}</span>
+        <span class="text-slate-500">{{ sensor.name }}</span>
         <div>
           <strong>
             {{ latestSample[sensor.key].toFixed(sensor.key === 'Oil_temperature' ? 1 : 2) }}
-          </strong> 
+          </strong>
           <small>{{ sensor.unit }}</small>
         </div>
         <small>{{ sensor.key }}</small>
@@ -89,17 +92,17 @@ function handleHover(time) {
     </div>
 
     <!-- Block 2: Đồ thị chuỗi thời gian -->
-    <section class="panel">
-      <div class="row between">
+    <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+      <div class="flex flex-wrap items-center gap-3 justify-between">
         <h2>Diễn biến cảm biến</h2>
-        <span class="muted">Chung trục thời gian</span>
+        <span class="text-slate-500">Chung trục thời gian</span>
       </div>
 
       <label class="chart-picker">
-        Biểu đồ thứ ba 
+        Biểu đồ thứ ba
         <select v-model="thirdSensorKey">
-          <option 
-            v-for="sensor in availableThirdSensors" 
+          <option
+            v-for="sensor in availableThirdSensors"
             :key="sensor.key"
             :value="sensor.key"
           >
@@ -108,18 +111,19 @@ function handleHover(time) {
         </select>
       </label>
 
-      <SensorPanel 
-        v-for="(sensor, index) in selectedSensors" 
-        :key="sensor.key" 
-        :sensor="sensor" 
+      <SensorPanel
+        v-for="(sensor, index) in selectedSensors"
+        :key="sensor.key"
+        :sensor="sensor"
+        :chart-group="chartGroup"
         :samples="samples"
-        :start="start" 
-        :end="end" 
-        :relative="relative" 
-        :marker="marker" 
+        :start="start"
+        :end="end"
+        :relative="relative"
+        :marker="marker"
         :hover="hoveredTime"
-        :color="CHART_COLORS[index]" 
-        @hover="handleHover" 
+        :color="CHART_COLORS[index]"
+        @hover="handleHover"
       />
 
       <p class="caption">
@@ -132,16 +136,16 @@ function handleHover(time) {
     </section>
 
     <!-- Block 3: Trạng thái Digital 8 kênh -->
-    <section v-if="!compact && latestSample" class="panel">
-      <div class="row between">
+    <section v-if="!compact && latestSample" class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+      <div class="flex flex-wrap items-center gap-3 justify-between">
         <h2>Tín hiệu trạng thái</h2>
-        <span class="muted">8 kênh · 0 / 1</span>
+        <span class="text-slate-500">8 kênh · 0 / 1</span>
       </div>
 
       <div class="digital-values">
         <div v-for="key in digitalSensors" :key="key">
           <span>{{ key }}</span>
-          <strong 
+          <strong
             class="bit"
             :class="{ 'one': latestSample[key] === 1 }"
           >
@@ -149,7 +153,7 @@ function handleHover(time) {
           </strong>
         </div>
       </div>
-      
+
       <p class="caption">
         0 / 1 là trạng thái tín hiệu, không đồng nghĩa với bình thường / lỗi.
       </p>

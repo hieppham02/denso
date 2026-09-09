@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { analogSensors, digitalSensors, devices, createHistory, createSimulation, advanceSimulation } from '../src/data/simulation.js'
+import { analogSensors, digitalSensors, devices, createHistory, createSimulation, advanceSimulation } from '../src/mock-data/simulation.js'
 
 test('Every device exposes 15 finite sensor values on the same ordered timeline',()=>{
   for(const device of devices){

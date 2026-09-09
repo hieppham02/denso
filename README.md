@@ -35,12 +35,12 @@ Có thể mở trực tiếp `/#device/APU-09`, `/#simulation/APU-09`, `/#incide
 
 - `src/App.vue`: điều hướng, màn hình tổng quan và trạng thái dùng chung.
 - `src/components/DeviceSensors.vue`: các thẻ cảm biến, trạng thái và ba biểu đồ.
-- `src/components/SensorPanel.vue`: biểu đồ SVG đáp ứng kích thước vùng chứa, đồng bộ con trỏ.
+- `src/components/SensorPanel.vue`: biểu đồ VueApexCharts, đồng bộ con trỏ và zoom.
 - `src/components/FleetMap.vue`, `AlertTable.vue`: danh sách thiết bị và cảnh báo.
 - `src/components/IncidentWorkspace.vue`: chi tiết, phê duyệt, theo dõi và lịch sử sự cố.
-- `src/data/simulation.js`: sinh tất cả cảm biến từ cùng một trạng thái máy.
-- `src/composables/useSimulation.js`: quản lý timer; dọn timer khi rời màn hình hoặc hủy component.
-- `src/data/incidents.js`: trạng thái và các điều kiện chuyển bước xử lý sự cố.
+- `src/mock-data/simulation.js`: sinh tất cả cảm biến từ cùng một trạng thái máy.
+- `src/mock-data/useSimulation.js`: quản lý timer; dọn timer khi rời màn hình hoặc hủy component.
+- `src/mock-data/incidents.js`: trạng thái và các điều kiện chuyển bước xử lý sự cố.
 - `src/style.css`: giao diện sáng, responsive bằng CSS và Tailwind.
 
 ## Phạm vi dữ liệu
@@ -50,3 +50,46 @@ Có thể mở trực tiếp `/#device/APU-09`, `/#simulation/APU-09`, `/#incide
 Tên cột theo MetroPT-3, gồm `DV_eletric` theo cách viết của dataset. Giá trị số, kịch bản, điểm bất thường và tài liệu đều là giả lập; điểm bất thường không phải xác suất lỗi. Mô phỏng dùng quy tắc nạp/tiêu thụ khí đơn giản, chưa hiệu chỉnh vật lý. Các bit 0/1 không tự biểu thị tốt/xấu. Ngưỡng và loại lỗi ở demo không được suy rộng sang máy thật.
 
 Các KPI lịch sử 18 ca, 89% và 4.2 phút là số liệu mẫu; 89% tính trên 16/18 ca trước phiên demo. Khi nối backend, thay nguồn mẫu bằng dữ liệu server và lưu quyết định/lịch sử có xác thực.
+
+## Tailwind CSS và VueApexCharts
+
+Tailwind v4 được cấu hình tại `vite.config.js` (`@tailwindcss/vite`) và `src/style.css` (`@import "tailwindcss"`). Các component hiện dùng utility trực tiếp, ví dụ:
+
+```html
+<section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">...</div>
+</section>
+```
+
+Các style riêng như sidebar, timeline, trạng thái được giữ trong `@layer components` để class Tailwind có thể ghi đè. Không cần thêm `tailwind.config.js` cho cấu hình v4 này.
+
+Biểu đồ dùng `vue3-apexcharts` dành cho Vue 3, cùng `apexcharts`. `SensorPanel.vue` import component `VueApexCharts` trực tiếp, không đăng ký toàn cục.
+
+Luồng biểu đồ:
+
+1. `mock-data/simulation.js` sinh mẫu.
+2. `mock-data/useSimulation.js` cập nhật `session` mỗi giây.
+3. `App.vue` truyền `session.samples` xuống `DeviceSensors.vue`.
+4. `DeviceSensors.vue` tạo group riêng cho ba biểu đồ và truyền xuống `SensorPanel.vue`.
+5. `utils/sensorChart.js` chuyển mẫu thành `{ x: time, y: value }`, cấu hình trục, tooltip và vạch bất thường.
+6. `VueApexCharts` tự cập nhật khi `series` hoặc `options` thay đổi.
+
+Mỗi biểu đồ có ID riêng; ba biểu đồ trong cùng cụm chia sẻ `chart.group` và độ rộng nhãn trục Y để đồng bộ hover/zoom. Hai cụm trước/sau xử lý dùng group khác nhau. Nút zoom/pan/reset do ApexCharts cung cấp. Các giá trị đầu biểu đồ đồng bộ theo mẫu được trỏ tới.
+
+Bản cập nhật cũng đồng bộ tên `isRunning`, `currentScenario`, `playbackSpeed` giữa `App.vue` và `useSimulation.js`, sửa đường dẫn test sang `src/mock-data`.
+
+Sau khi cập nhật source, chạy tại thư mục gốc repo:
+
+```bash
+npm install
+npm run dev
+```
+
+Kiểm tra:
+
+```bash
+npm test
+npm run build
+```
+
+Tài liệu: [Tailwind + Vite](https://tailwindcss.com/docs/installation/using-vite), [VueApexCharts cho Vue 3](https://apexcharts.com/docs/vue-charts/), [Biểu đồ đồng bộ](https://apexcharts.com/docs/chart-types/synchronized-charts/).
