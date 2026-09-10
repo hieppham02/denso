@@ -1,0 +1,1 @@
+"""FactoryDoctor FastAPI application."""

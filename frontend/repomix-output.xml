@@ -1,0 +1,3131 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+src/
+  components/
+    AlertTable.vue
+    DeviceSensors.vue
+    FleetMap.vue
+    IncidentWorkspace.vue
+    MachineViewport.vue
+    SensorPanel.vue
+  mock-data/
+    incidents.js
+    simulation.js
+    useSimulation.js
+  utils/
+    sensorChart.js
+  App.vue
+  main.js
+  style.css
+tests/
+  incidents.test.js
+  sensorChart.test.js
+  simulation.test.js
+.gitignore
+index.html
+package.json
+README.md
+vite.config.js
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/mock-data/incidents.js">
+const DEFAULT_ACTION = "Kiểm tra xác nhận dấu hiệu rò khí theo quy trình bảo trì đã phê duyệt; ghi lại kết quả kiểm tra trước khi quyết định can thiệp.";
+
+// Định nghĩa Enum hằng số trạng thái để chống lỗi gõ sai
+export const INCIDENT_STATES = {
+  NEW: "Mới",
+  ANALYZING: "Đang phân tích",
+  PENDING: "Chờ duyệt",
+  PROCESSING: "Đang xử lý",
+  MONITORING: "Đang theo dõi",
+  CLOSED: "Đã đóng",
+};
+
+export const incidentStates = Object.values(INCIDENT_STATES);
+
+export function createIncidents() {
+  const rawData = [
+    ["SC-024", "APU-09", "B", "Cao", INCIDENT_STATES.PENDING, "09:42", "Áp suất tụt nhanh, chu kỳ nén dày", 0.82],
+    ["SC-023", "APU-16", "C", "Cao", INCIDENT_STATES.ANALYZING, "09:35", "Tín hiệu vận hành bất thường kéo dài", 0.78],
+    ["SC-022", "APU-04", "A", "Trung bình", INCIDENT_STATES.PENDING, "09:21", "Thời gian nạp khí tăng", 0.71],
+    ["SC-021", "APU-20", "D", "Trung bình", INCIDENT_STATES.PROCESSING, "09:12", "Áp suất hệ thống dao động", 0.69],
+    ["SC-020", "APU-12", "B", "Trung bình", INCIDENT_STATES.NEW, "09:05", "Chu kỳ máy nén thay đổi", 0.65],
+  ];
+
+  return rawData.map(([id, machine, line, risk, state, time, title, score]) => {
+    const incident = {
+      id, machine, line, risk, state, time, title, score,
+      action: DEFAULT_ACTION,
+      note: "",
+      progress: 0,
+      history: [],
+    };
+
+    // Tạo lịch sử mẫu giả lập theo trạng thái
+    appendHistory(incident, time, "Hệ thống · mẫu", "Phát hiện bất thường từ dữ liệu cảm biến");
+
+    if (state !== INCIDENT_STATES.NEW) {
+      appendHistory(incident, time, "Trợ lý AI · mẫu", "Tổng hợp tín hiệu và tra cứu tài liệu");
+    }
+    if ([INCIDENT_STATES.PENDING, INCIDENT_STATES.PROCESSING].includes(state)) {
+      appendHistory(incident, time, "Trợ lý AI · mẫu", "Gửi đề xuất kiểm tra cho trưởng ca");
+    }
+    if (state === INCIDENT_STATES.PROCESSING) {
+      appendHistory(incident, "09:18", "Nguyễn An · mẫu", "Duyệt đề xuất và giao kỹ thuật viên");
+    }
+
+    return incident;
+  });
+}
+
+// Các hàm Helper nội bộ
+function requireState(incident, allowedStates) {
+  if (!allowedStates.includes(incident.state)) {
+    throw new Error("Trạng thái sự cố không cho phép thao tác này.");
+  }
+}
+
+function appendHistory(incident, time, actor, text) {
+  incident.history.push({ time, actor, text });
+}
+
+function recordInteraction(incident, text, actor = "Nguyễn An · demo") {
+  const currentTime = new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  appendHistory(incident, currentTime, actor, text);
+}
+
+// Cỗ máy chuyển đổi trạng thái (State Machine)
+export function transitionIncident(incident, event, payload = {}) {
+  const note = (payload.note || "").trim();
+
+  switch (event) {
+    case "analyze":
+      requireState(incident, [INCIDENT_STATES.NEW, INCIDENT_STATES.ANALYZING]);
+      incident.state = INCIDENT_STATES.PENDING;
+      recordInteraction(incident, "Hoàn tất phân tích minh họa; gửi đề xuất kiểm tra", "Trợ lý AI · demo");
+      break;
+
+    case "approve":
+    case "reject":
+    case "edit":
+      requireState(incident, [INCIDENT_STATES.PENDING]);
+      
+      if (event !== "approve" && !note) throw new Error("Nhập lý do khi từ chối hoặc chỉnh sửa.");
+      if (event === "edit" && !payload.action?.trim()) throw new Error("Phương án không được để trống.");
+      
+      incident.note = note;
+      
+      if (event === "edit") {
+        incident.action = payload.action.trim();
+        recordInteraction(incident, `Chỉnh sửa đề xuất: ${incident.action}. Lý do: ${note}`);
+      } else {
+        incident.state = event === "approve" ? INCIDENT_STATES.PROCESSING : INCIDENT_STATES.ANALYZING;
+        const logMsg = event === "approve" ? "Duyệt đề xuất; giao kỹ thuật viên" : "Từ chối đề xuất";
+        recordInteraction(incident, `${logMsg}. ${note}`);
+      }
+      break;
+
+    case "start":
+      requireState(incident, [INCIDENT_STATES.PROCESSING]);
+      incident.state = INCIDENT_STATES.MONITORING;
+      incident.progress = 0;
+      recordInteraction(incident, "Xác nhận đã thực hiện; bắt đầu theo dõi 20 phút", "Trần Minh · demo");
+      break;
+
+    case "advance":
+      requireState(incident, [INCIDENT_STATES.MONITORING]);
+      incident.progress = Math.min(20, incident.progress + 5);
+      break;
+
+    case "close":
+    case "reanalyze":
+      requireState(incident, [INCIDENT_STATES.MONITORING]);
+      if (incident.progress < 20) throw new Error("Cần hoàn tất cửa sổ theo dõi trước khi kết luận.");
+      
+      incident.state = event === "close" ? INCIDENT_STATES.CLOSED : INCIDENT_STATES.ANALYZING;
+      const resultMsg = event === "close" 
+        ? "Xác nhận ổn định sau 20 phút mô phỏng; đóng sự cố" 
+        : "Vẫn bất thường sau xử lý; yêu cầu phân tích lại";
+      
+      recordInteraction(incident, resultMsg, "Trần Minh · demo");
+      if (event === "reanalyze") incident.progress = 0;
+      break;
+
+    default:
+      throw new Error("Thao tác không hợp lệ.");
+  }
+}
+</file>
+
+<file path="src/mock-data/simulation.js">
+// Cấu hình hằng số toàn cục
+export const SIMULATION_DURATION = 900; // 15 phút
+export const LEAK_START = 60; // Bắt đầu rò rỉ ở giây 60
+export const SAMPLE_SECONDS = 5; // Chu kỳ lấy mẫu (5s/lần)
+export const DEMO_TIMESTAMP = Date.UTC(2026, 8, 9, 3, 0, 0); // 10:00 sáng VN (09/09/2026)
+
+// Cấu hình Sensor
+export const analogSensors = [
+  { key: "TP2", name: "Áp suất máy nén", unit: "bar" },
+  { key: "TP3", name: "Áp suất hệ thống", unit: "bar" },
+  { key: "H1", name: "Áp suất H1", unit: "bar" },
+  { key: "DV_pressure", name: "Chênh áp DV", unit: "bar" },
+  { key: "Reservoirs", name: "Áp suất bình chứa", unit: "bar" },
+  { key: "Oil_temperature", name: "Nhiệt độ dầu", unit: "°C" },
+  { key: "Motor_current", name: "Dòng điện động cơ", unit: "A" },
+];
+
+export const digitalSensors = [
+  "COMP", "DV_eletric", "Towers", "MPG",
+  "LPS", "Pressure_switch", "Oil_level", "Caudal_impulses",
+];
+
+// Tạo 24 thiết bị chia vào 4 dây chuyền (A, B, C, D)
+export const devices = Array.from({ length: 24 }, (_, i) => ({
+  id: `APU-${String(i + 1).padStart(2, "0")}`,
+  line: "ABCD"[Math.floor(i / 6)],
+}));
+
+// Khởi tạo model thiết bị ban đầu
+export function createModel(deviceId = "APU-01") {
+  const machineIndex = Number(deviceId.slice(-2));
+  return {
+    pressure: 8.4 + machineIndex * 0.009, // Máy có ID lớn áp suất nhỉnh hơn chút
+    loaded: false, // Trạng thái nạp khí (chạy động cơ)
+    temperature: 54, // Nhiệt độ dầu ban đầu
+  };
+}
+
+// Hàm lõi: Tính toán mẫu dữ liệu tiếp theo dựa trên vật lý giả lập
+export function nextSample(model, timeInSeconds, isLeaking = false) {
+  // Mô phỏng diễn biến trong từng giây của 1 chu kỳ lấy mẫu
+  for (let sec = 0; sec < SAMPLE_SECONDS; sec++) {
+    // Logic bật/tắt nén khí (dưới 7 bar bật, trên 8.8 bar tắt)
+    if (model.pressure <= 7.0) model.loaded = true;
+    if (model.pressure >= 8.8) model.loaded = false;
+
+    // Tính toán áp suất: (Nếu đang nạp thì tăng) - (Tiêu thụ cố định) - (Tụt áp do rò rỉ)
+    const pressureIncrease = model.loaded ? 0.05 : 0;
+    const baseConsumption = 0.015;
+    const leakDrop = isLeaking ? 0.02 : 0;
+    
+    model.pressure += (pressureIncrease - baseConsumption - leakDrop);
+
+    // Tính toán nhiệt độ (Tăng khi nén, giảm khi nghỉ)
+    const targetTemp = model.loaded ? 61 : 52;
+    model.temperature += (targetTemp - model.temperature) * 0.002;
+  }
+
+  const currentPressure = model.pressure;
+  const isLoaded = model.loaded;
+
+  return {
+    time: timeInSeconds,
+    timestamp: new Date(DEMO_TIMESTAMP + timeInSeconds * 1000).toISOString(),
+    
+    // Analog Data
+    TP2: isLoaded ? currentPressure + 0.14 : 0.025,
+    TP3: currentPressure,
+    H1: currentPressure - 0.045,
+    Reservoirs: currentPressure - 0.02,
+    DV_pressure: isLoaded ? 0.025 : 0.012,
+    Oil_temperature: model.temperature,
+    // Dòng điện tạo dao động sin cho sinh động nếu đang nạp
+    Motor_current: isLoaded ? 7.05 + 0.14 * Math.sin(timeInSeconds / 9) : 0.04,
+    
+    // Digital Data (Chuyển boolean thành 0/1)
+    COMP: isLoaded ? 0 : 1, // 0 = đang nén (ngược logic)
+    DV_eletric: Number(isLoaded),
+    Towers: Math.floor((timeInSeconds + 7200) / 120) % 2, // Đổi tháp mỗi 2 phút
+    MPG: Number(isLoaded),
+    LPS: Number(currentPressure < 7),
+    Pressure_switch: 1,
+    Oil_level: 1,
+    Caudal_impulses: Number(isLoaded),
+    loaded: isLoaded,
+  };
+}
+
+// Khởi tạo lịch sử 1 giờ trước đó
+export function createHistory(deviceId, hasAlert = false) {
+  const model = createModel(deviceId);
+  const samples = [];
+  
+  for (let time = -3600; time <= 0; time += SAMPLE_SECONDS) {
+    const isIncidentTime = hasAlert && time >= -300; // Bất thường trong 5 phút cuối
+    samples.push(nextSample(model, time, isIncidentTime));
+  }
+  return samples;
+}
+
+// Khởi tạo phiên mô phỏng mới
+export function createSimulation(deviceId) {
+  const model = createModel(deviceId);
+  const samples = [];
+  
+  // Nạp 5 phút dữ liệu nền
+  for (let time = -300; time <= 0; time += SAMPLE_SECONDS) {
+    samples.push(nextSample(model, time));
+  }
+  return { model, samples, elapsed: 0 };
+}
+
+// Đẩy nhanh mô phỏng 1 bước (tick)
+export function advanceSimulation(session, scenario, playbackSpeed = 1) {
+  if (!["normal", "leak"].includes(scenario) || ![1, 2, 5].includes(playbackSpeed)) {
+    throw new Error("Cấu hình mô phỏng không hợp lệ");
+  }
+
+  for (let i = 0; i < playbackSpeed && session.elapsed < SIMULATION_DURATION; i++) {
+    session.elapsed += SAMPLE_SECONDS;
+    const isLeaking = scenario === "leak" && session.elapsed >= LEAK_START;
+    
+    session.samples.push(nextSample(session.model, session.elapsed, isLeaking));
+  }
+
+  // Cắt tỉa mảng: Giữ tối đa độ dài SIMULATION_DURATION để tránh tràn RAM
+  session.samples = session.samples.filter(
+    (sample) => sample.time >= session.elapsed - SIMULATION_DURATION
+  );
+  
+  return session;
+}
+
+// Format hiển thị thời gian
+export function formatTime(seconds, isRelative = false) {
+  if (isRelative) {
+    const sign = seconds < 0 ? "−" : "";
+    const mins = String(Math.floor(Math.abs(seconds) / 60)).padStart(2, "0");
+    const secs = String(Math.floor(Math.abs(seconds) % 60)).padStart(2, "0");
+    return `${sign}${mins}:${secs}`;
+  }
+  
+  return new Date(DEMO_TIMESTAMP + seconds * 1000).toLocaleTimeString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+</file>
+
+<file path="src/mock-data/useSimulation.js">
+import { onBeforeUnmount, ref, shallowRef } from 'vue'
+import { advanceSimulation, createSimulation, SIMULATION_DURATION } from './simulation'
+
+export function useSimulation() {
+  // Trạng thái mô phỏng
+  const session = shallowRef(createSimulation('APU-09'))
+  const isRunning = ref(false)
+  const currentScenario = ref('normal')
+  const playbackSpeed = ref(1)
+  
+  let timerId = null
+
+  function pause() {
+    if (timerId !== null) {
+      clearInterval(timerId)
+      timerId = null
+    }
+    isRunning.value = false
+  }
+
+  function reset(deviceId) {
+    pause()
+    session.value = createSimulation(deviceId)
+  }
+
+  function play(deviceId) {
+    if (isRunning.value) return
+
+    // Tự động quay về từ đầu nếu đã mô phỏng hết thời gian
+    if (session.value.elapsed >= SIMULATION_DURATION) {
+      reset(deviceId)
+    }
+
+    isRunning.value = true
+    
+    // Khởi chạy bộ đếm theo thời gian thực (1 giây)
+    timerId = setInterval(() => {
+      // Cập nhật shallowRef bằng cách tạo tham chiếu object mới
+      session.value = { 
+        ...advanceSimulation(session.value, currentScenario.value, playbackSpeed.value) 
+      }
+      
+      // Dừng tự động khi đạt giới hạn thời gian
+      if (session.value.elapsed >= SIMULATION_DURATION) {
+        pause()
+      }
+    }, 1000)
+  }
+
+  // Tự động dọn dẹp interval khi component gọi hook này bị hủy
+  onBeforeUnmount(() => {
+    pause()
+  })
+
+  return { 
+    session, 
+    isRunning, 
+    currentScenario, 
+    playbackSpeed, 
+    pause, 
+    reset, 
+    play 
+  }
+}
+</file>
+
+<file path="src/utils/sensorChart.js">
+import { formatTime } from '../mock-data/simulation.js'
+
+// Adapter dữ liệu dùng chung cho mọi biểu đồ (thiết bị, mô phỏng, tổng quan).
+export function toSensorPoints(samples, key, start, end) {
+  return samples
+    .filter(sample => Number.isFinite(sample.time) && Number.isFinite(sample[key]) && sample.time >= start && sample.time <= end)
+    .map(sample => ({ x: sample.time, y: sample[key] }))
+}
+
+export function makeSensorOptions({ id, group, sensor, color, start, end, relative, marker, onHover }) {
+  const precision = sensor.key === 'DV_pressure' ? 3 : sensor.key === 'count' ? 0 : 2
+  const reportPoint = (_event, _chart, options) => {
+    if (Number.isInteger(options?.dataPointIndex) && options.dataPointIndex >= 0) onHover?.(options.dataPointIndex)
+  }
+
+  return {
+    chart: {
+      id,
+      // Chỉ các biểu đồ thuộc cùng DeviceSensors mới đồng bộ với nhau.
+      ...(group ? { group } : {}),
+      type: 'line', background: 'transparent', foreColor: '#67768d',
+      fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
+      animations: { enabled: false },
+      redrawOnParentResize: true, redrawOnWindowResize: true,
+      parentHeightOffset: 0,
+      toolbar: { show: true, tools: { download: false, selection: false, zoom: true, zoomin: true, zoomout: true, pan: true, reset: true }, autoSelected: 'zoom' },
+      zoom: { enabled: true, type: 'x', autoScaleYaxis: false },
+      events: { mouseMove: reportPoint, click: reportPoint },
+    },
+    theme: { mode: 'light' }, colors: [color],
+    stroke: { curve: 'straight', width: 2 },
+    markers: { size: 0, hover: { size: 4 } },
+    dataLabels: { enabled: false },
+    legend: { show: false },
+    grid: { borderColor: '#e6eaf0', padding: { left: 0, right: 14, top: 4, bottom: 0 } },
+    xaxis: {
+      type: 'numeric', min: start, max: Math.max(start + 1, end), tickAmount: 4,
+      labels: { hideOverlappingLabels: true, rotate: 0, formatter: value => formatTime(Number(value), relative) },
+      title: { text: relative ? 'Thời gian mô phỏng (phút:giây)' : 'Thời gian (giờ:phút)', style: { fontWeight: 400 } },
+      axisBorder: { color: '#dce3ed' }, axisTicks: { show: false },
+      crosshairs: { show: true, stroke: { color: '#8695ac', dashArray: 3 } },
+      tooltip: { enabled: false },
+    },
+    yaxis: {
+      tickAmount: 3,
+      labels: { minWidth: 64, maxWidth: 64, formatter: value => Number.isFinite(value) ? value.toFixed(precision) : '—' },
+    },
+    tooltip: {
+      enabled: true, shared: false, intersect: false,
+      x: { formatter: value => formatTime(value, relative) },
+      y: { formatter: value => `${Number.isFinite(value) ? value.toFixed(precision) : '—'} ${sensor.unit}` },
+    },
+    annotations: {
+      xaxis: marker !== null && marker >= start && marker <= end ? [{
+        x: marker, borderColor: '#c88420', strokeDashArray: 4,
+        label: { text: relative ? 'Rò khí' : 'Bất thường', orientation: 'horizontal', style: { color: '#8a570a', background: '#fff4df' } },
+      }] : [],
+    },
+    noData: { text: 'Chưa có dữ liệu', style: { color: '#67768d' } },
+  }
+}
+</file>
+
+<file path="src/main.js">
+import { createApp } from 'vue'
+import App from './App.vue'
+import './style.css'
+
+createApp(App).mount('#app')
+</file>
+
+<file path="tests/sensorChart.test.js">
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { toSensorPoints, makeSensorOptions } from '../src/utils/sensorChart.js'
+const defaults = { id: 'tp2', group: 'device-a', sensor: { key: 'TP2', unit: 'bar' }, color: '#3563e9', start: -60, end: 120, relative: true, marker: 60 }
+
+test('Invalid sensor readings and samples outside the visible window never reach ApexCharts', () => {
+  assert.deepEqual(toSensorPoints([
+    {time:-65,TP2:4}, {time:-60,TP2:7}, {time:0,TP2:NaN},
+    {time:5,TP2:Infinity}, {time:10,TP2:null}, {time:20,TP2:8}, {time:125,TP2:9},
+  ], 'TP2', -60, 120), [{x:-60,y:7},{x:20,y:8}])
+  assert.deepEqual(toSensorPoints([], 'TP2', -60, 120), [])
+})
+test('Groups align x axes without forcing different sensor units onto one y scale', () => {
+  const pressure = makeSensorOptions(defaults)
+  const temperature = makeSensorOptions({...defaults,id:'oil',sensor:{key:'Oil_temperature',unit:'°C'}})
+  const after = makeSensorOptions({...defaults,id:'after',group:'device-after'})
+  assert.equal(pressure.chart.group,temperature.chart.group)
+  assert.notEqual(pressure.chart.id,temperature.chart.id)
+  assert.notEqual(pressure.chart.group,after.chart.group)
+  assert.equal(pressure.yaxis.labels.minWidth,temperature.yaxis.labels.minWidth)
+  assert.equal(pressure.yaxis.min,undefined)
+  assert.equal(pressure.xaxis.min,temperature.xaxis.min)
+  assert.equal(pressure.xaxis.max,temperature.xaxis.max)
+  assert.equal(pressure.xaxis.type,temperature.xaxis.type)
+  assert.match(temperature.tooltip.y.formatter(54),/°C/)
+})
+test('Leak marker obeys the visible window and hover ignores invalid indexes', () => {
+  const hits=[]
+  const options=makeSensorOptions({...defaults,onHover:i=>hits.push(i)})
+  assert.equal(options.annotations.xaxis[0].x,60)
+  assert.deepEqual(makeSensorOptions({...defaults,end:30}).annotations.xaxis,[])
+  assert.deepEqual(makeSensorOptions({...defaults,marker:null}).annotations.xaxis,[])
+  options.chart.events.mouseMove(null,null,{dataPointIndex:-1})
+  options.chart.events.mouseMove(null,null,{dataPointIndex:2})
+  assert.deepEqual(hits,[2])
+})
+</file>
+
+<file path=".gitignore">
+node_modules/
+dist/
+.env.local
+.env.*.local
+*.log
+</file>
+
+<file path="vite.config.js">
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [vue(), tailwindcss()],
+})
+</file>
+
+<file path="tests/incidents.test.js">
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { createIncidents, transitionIncident } from '../src/mock-data/incidents.js'
+test('Approval cannot skip execution or verification window',()=>{
+  const incident=createIncidents()[0]
+  assert.throws(()=>transitionIncident(incident,'start'))
+  transitionIncident(incident,'approve',{note:'Phân công kiểm tra'})
+  assert.equal(incident.state,'Đang xử lý')
+  assert.throws(()=>transitionIncident(incident,'close'))
+  transitionIncident(incident,'start')
+  assert.throws(()=>transitionIncident(incident,'close'))
+  for(let i=0;i<4;i++)transitionIncident(incident,'advance')
+  transitionIncident(incident,'close')
+  assert.equal(incident.state,'Đã đóng')
+  assert.match(incident.history.at(-1).text,/đóng sự cố/)
+})
+test('Reject and edit require notes; edits record the actual action',()=>{
+  const incident=createIncidents()[0]
+  const previous=structuredClone(incident)
+  assert.throws(()=>transitionIncident(incident,'reject'))
+  assert.throws(()=>transitionIncident(incident,'edit',{note:'Thay đổi'}))
+  assert.deepEqual(incident,previous)
+  transitionIncident(incident,'edit',{note:'Cần xác nhận',action:'Kiểm tra tại hiện trường'})
+  assert.equal(incident.state,'Chờ duyệt')
+  assert.match(incident.history.at(-1).text,/Kiểm tra tại hiện trường/)
+  transitionIncident(incident,'reject',{note:'Thiếu dữ liệu'})
+  assert.equal(incident.state,'Đang phân tích')
+})
+test('Failed verification returns to analysis while retaining the audit history',()=>{
+  const incident=createIncidents()[0]
+  transitionIncident(incident,'approve');transitionIncident(incident,'start')
+  for(let i=0;i<4;i++)transitionIncident(incident,'advance')
+  const before=incident.history.length
+  transitionIncident(incident,'reanalyze')
+  assert.equal(incident.state,'Đang phân tích')
+  assert.equal(incident.progress,0)
+  assert.equal(incident.history.length,before+1)
+  transitionIncident(incident,'analyze')
+  assert.equal(incident.state,'Chờ duyệt')
+})
+</file>
+
+<file path="tests/simulation.test.js">
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { analogSensors, digitalSensors, devices, createHistory, createSimulation, advanceSimulation } from '../src/mock-data/simulation.js'
+
+test('Every device exposes 15 finite sensor values on the same ordered timeline',()=>{
+  for(const device of devices){
+    const samples=createHistory(device.id,true)
+    assert.equal(samples.length,721)
+    for(let i=0;i<samples.length;i++){
+      const sample=samples[i]
+      for(const {key} of analogSensors)assert.ok(Number.isFinite(sample[key]))
+      for(const key of digitalSensors)assert.ok([0,1].includes(sample[key]))
+      assert.ok(Math.abs(sample.TP3-sample.Reservoirs-.02)<1e-9)
+      assert.equal(sample.DV_eletric,Number(sample.loaded))
+      assert.equal(sample.Motor_current>6,sample.loaded)
+      if(i)assert.equal(sample.time-samples[i-1].time,5)
+    }
+  }
+})
+test('Leak scenario diverges only after injection and increases compressor duty',()=>{
+  const normal=createSimulation('APU-09'),leak=createSimulation('APU-09')
+  for(let i=0;i<11;i++){advanceSimulation(normal,'normal');advanceSimulation(leak,'leak')}
+  assert.deepEqual(normal.samples,leak.samples)
+  while(normal.elapsed<900){advanceSimulation(normal,'normal',5);advanceSimulation(leak,'leak',5)}
+  const duty=s=>s.samples.filter(p=>p.time>=60&&p.loaded).length
+  assert.ok(duty(leak)>duty(normal))
+  assert.ok(leak.samples.every(s=>s.TP3>0))
+})
+test('Simulation duration, speed, buffer and reset are deterministic',()=>{
+  const session=createSimulation('APU-01')
+  advanceSimulation(session,'normal',5)
+  assert.equal(session.elapsed,25)
+  for(let i=0;i<100;i++)advanceSimulation(session,'normal',5)
+  assert.equal(session.elapsed,900)
+  assert.ok(session.samples.length<=181)
+  assert.equal(session.samples.at(-1).time,900)
+  assert.equal(createSimulation('APU-01').elapsed,0)
+  assert.throws(()=>advanceSimulation(session,'unknown'))
+})
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f7fb" />
+    <meta name="description" content="FactoryDoctor" />
+    <title>Factory Doctor</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
+</file>
+
+<file path="package.json">
+{
+  "name": "denso-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "apexcharts": "^7.1.0",
+    "lucide-vue-next": "^0.468.0",
+    "vue": "^3.5.42",
+    "vue3-apexcharts": "^1.11.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "tailwindcss": "^4.1.0",
+    "vite": "^7.0.0"
+  }
+}
+</file>
+
+<file path="src/components/AlertTable.vue">
+<script setup>
+import { computed, ref } from 'vue'
+import { incidentStates } from '../mock-data/incidents'
+
+const props = defineProps({
+  incidents: {
+    type: Array,
+    required: true
+  },
+  filters: {
+    type: Boolean,
+    default: false
+  }
+})
+
+const emit = defineEmits(['select'])
+
+const search = ref('')
+const selectedLine = ref('')
+const selectedRisk = ref('')
+const selectedState = ref('')
+
+const availableLines = ['A', 'B', 'C', 'D']
+const availableRisks = ['Cao', 'Trung bình']
+
+const filteredIncidents = computed(() => {
+  const query = search.value.trim().toLowerCase()
+
+  return props.incidents.filter((item) => {
+    const matchLine = !selectedLine.value || item.line === selectedLine.value
+    const matchRisk = !selectedRisk.value || item.risk === selectedRisk.value
+    const matchState = !selectedState.value || item.state === selectedState.value
+    const matchQuery = !query || `${item.id} ${item.machine} ${item.title}`.toLowerCase().includes(query)
+
+    return matchLine && matchRisk && matchState && matchQuery
+  })
+})
+
+function handleSelect(id) {
+  emit('select', id)
+}
+</script>
+
+<template>
+  <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+    <div v-if="filters" class="filters">
+      <input
+        v-model="search"
+        type="search"
+        placeholder="Tìm sự cố, thiết bị…"
+        aria-label="Tìm sự cố hoặc thiết bị"
+      >
+
+      <select v-model="selectedLine" aria-label="Lọc dây chuyền">
+        <option value="">Mọi dây chuyền</option>
+        <option v-for="line in availableLines" :key="line" :value="line">
+          {{ line }}
+        </option>
+      </select>
+
+      <select v-model="selectedRisk" aria-label="Lọc mức độ">
+        <option value="">Mọi mức độ</option>
+        <option v-for="risk in availableRisks" :key="risk" :value="risk">
+          {{ risk }}
+        </option>
+      </select>
+
+      <select v-model="selectedState" aria-label="Lọc trạng thái">
+        <option value="">Mọi trạng thái</option>
+        <option v-for="state in incidentStates" :key="state" :value="state">
+          {{ state }}
+        </option>
+      </select>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Sự cố / Phát hiện</th>
+            <th>Thiết bị</th>
+            <th>Mức độ</th>
+            <th>Trạng thái</th>
+            <th aria-label="Thao tác"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="incident in filteredIncidents" :key="incident.id">
+            <td>
+              <button class="text-button" @click="handleSelect(incident.id)">
+                {{ incident.id }}
+              </button>
+              <small>09/09 · {{ incident.time }}</small>
+            </td>
+
+            <td>
+              {{ incident.machine }}
+              <small>Dây chuyền {{ incident.line }}</small>
+            </td>
+
+            <td>
+              <span class="badge" :class="incident.risk === 'Cao' ? 'red' : 'amber'">
+                {{ incident.risk }}
+              </span>
+            </td>
+
+            <td>
+              <span
+                class="badge"
+                :class="{
+                  'green': incident.state === 'Đã đóng',
+                  'amber': incident.state === 'Chờ duyệt'
+                }"
+              >
+                {{ incident.state }}
+              </span>
+            </td>
+
+            <td>
+              <button class="text-button" @click="handleSelect(incident.id)">
+                Chi tiết →
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p v-if="!filteredIncidents.length" class="p-7 text-center text-slate-500">
+      Không có sự cố phù hợp bộ lọc.
+    </p>
+
+    <p class="caption">
+      {{ filteredIncidents.length }} sự cố · Mới nhất trước · Dữ liệu minh họa
+    </p>
+  </section>
+</template>
+</file>
+
+<file path="src/components/DeviceSensors.vue">
+<script setup>
+import { computed, ref, watch, useId } from 'vue'
+import SensorPanel from './SensorPanel.vue'
+import { analogSensors, digitalSensors, formatTime } from '../mock-data/simulation.js'
+
+const props = defineProps({
+  samples: {
+    type: Array,
+    required: true
+  },
+  start: {
+    type: Number,
+    required: true
+  },
+  end: {
+    type: Number,
+    required: true
+  },
+  relative: {
+    type: Boolean,
+    default: false
+  },
+  marker: {
+    type: Number,
+    default: null
+  },
+  compact: {
+    type: Boolean,
+    default: false
+  }
+})
+
+// Khai báo state
+const thirdSensorKey = ref('Motor_current')
+const hoveredTime = ref(null)
+
+// Mỗi cụm ba biểu đồ có group riêng; trước/sau xử lý không tác động lẫn nhau.
+const chartGroup = `device-sensors-${useId()}`
+
+const CHART_COLORS = ['#3563e9', '#159885', '#9370c9']
+
+// Cố định 2 biểu đồ đầu là TP2, TP3; biểu đồ thứ 3 do người dùng chọn
+const selectedSensors = computed(() => {
+  return ['TP2', 'TP3', thirdSensorKey.value].map(
+    (key) => analogSensors.find((sensor) => sensor.key === key)
+  )
+})
+
+// Danh sách cảm biến cho dropdown (loại bỏ TP2, TP3)
+const availableThirdSensors = computed(() => {
+  return analogSensors.filter((sensor) => !['TP2', 'TP3'].includes(sensor.key))
+})
+
+// Lấy mẫu dữ liệu mới nhất
+const latestSample = computed(() => props.samples.at(-1))
+
+// Tính toán thời gian đang được đối chiếu (hover)
+const activeHoverTime = computed(() => {
+  const defaultHover = Math.min(props.end, latestSample.value?.time ?? props.end)
+  return hoveredTime.value ?? defaultHover
+})
+
+// Reset hover khi khoảng thời gian hoặc dữ liệu thay đổi
+watch(
+  () => [props.samples, props.start, props.end],
+  () => { hoveredTime.value = null }
+)
+
+function handleHover(time) {
+  hoveredTime.value = time
+}
+</script>
+
+<template>
+  <div class="grid min-w-0 content-start gap-[18px]">
+    <!-- Block 1: Thông số Analog hiện tại (ẩn nếu ở chế độ compact) -->
+    <div v-if="!compact && latestSample" class="grid grid-cols-2 gap-3 min-[801px]:grid-cols-4 min-[1550px]:grid-cols-7">
+      <div
+        v-for="sensor in analogSensors"
+        :key="sensor.key"
+        class="sensor-value"
+      >
+        <span class="text-slate-500">{{ sensor.name }}</span>
+        <div>
+          <strong>
+            {{ latestSample[sensor.key].toFixed(sensor.key === 'Oil_temperature' ? 1 : 2) }}
+          </strong>
+          <small>{{ sensor.unit }}</small>
+        </div>
+        <small>{{ sensor.key }}</small>
+      </div>
+    </div>
+
+    <!-- Block 2: Đồ thị chuỗi thời gian -->
+    <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+      <div class="flex flex-wrap items-center gap-3 justify-between">
+        <h2>Diễn biến cảm biến</h2>
+        <span class="text-slate-500">Chung trục thời gian</span>
+      </div>
+
+      <label class="chart-picker">
+        Biểu đồ thứ ba
+        <select v-model="thirdSensorKey">
+          <option
+            v-for="sensor in availableThirdSensors"
+            :key="sensor.key"
+            :value="sensor.key"
+          >
+            {{ sensor.key }} · {{ sensor.name }}
+          </option>
+        </select>
+      </label>
+
+      <SensorPanel
+        v-for="(sensor, index) in selectedSensors"
+        :key="sensor.key"
+        :sensor="sensor"
+        :chart-group="chartGroup"
+        :samples="samples"
+        :start="start"
+        :end="end"
+        :relative="relative"
+        :marker="marker"
+        :hover="hoveredTime"
+        :color="CHART_COLORS[index]"
+        @hover="handleHover"
+      />
+
+      <p class="caption">
+        Thời điểm đối chiếu: {{ formatTime(activeHoverTime, relative) }} · Rê chuột hoặc chạm vào biểu đồ.
+      </p>
+
+      <p v-if="marker !== null" class="caption">
+        Vạch cam: {{ relative ? 'bắt đầu rò khí' : 'bắt đầu đoạn bất thường' }} · {{ formatTime(marker, relative) }}
+      </p>
+    </section>
+
+    <!-- Block 3: Trạng thái Digital 8 kênh -->
+    <section v-if="!compact && latestSample" class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+      <div class="flex flex-wrap items-center gap-3 justify-between">
+        <h2>Tín hiệu trạng thái</h2>
+        <span class="text-slate-500">8 kênh · 0 / 1</span>
+      </div>
+
+      <div class="digital-values">
+        <div v-for="key in digitalSensors" :key="key">
+          <span>{{ key }}</span>
+          <strong
+            class="bit"
+            :class="{ 'one': latestSample[key] === 1 }"
+          >
+            {{ latestSample[key] }}
+          </strong>
+        </div>
+      </div>
+
+      <p class="caption">
+        0 / 1 là trạng thái tín hiệu, không đồng nghĩa với bình thường / lỗi.
+      </p>
+    </section>
+  </div>
+</template>
+</file>
+
+<file path="src/components/FleetMap.vue">
+<script setup>
+import { computed } from 'vue'
+import { devices } from '../mock-data/simulation'
+
+const props = defineProps({
+  incidents: {
+    type: Array,
+    required: true
+  }
+})
+
+const emit = defineEmits(['select'])
+
+const PRODUCTION_LINES = ['A', 'B', 'C', 'D']
+
+// Map incidents chưa đóng theo machine ID để tra cứu O(1) thay vì lặp find lồng nhau
+const activeIncidentMap = computed(() => {
+  const map = new Map()
+  for (const incident of props.incidents) {
+    if (incident.state !== 'Đã đóng' && !map.has(incident.machine)) {
+      map.set(incident.machine, incident)
+    }
+  }
+  return map
+})
+
+function getActiveIncident(deviceId) {
+  return activeIncidentMap.value.get(deviceId)
+}
+
+function getMachineStatusClass(deviceId) {
+  const incident = getActiveIncident(deviceId)
+  if (!incident) return ''
+  return incident.risk === 'Cao' ? 'critical' : 'warning'
+}
+
+function getMachineAriaLabel(deviceId, line) {
+  const incident = getActiveIncident(deviceId)
+  const statusText = incident ? `${incident.risk === 'Cao' ? 'ưu tiên cao' : 'cần chú ý'}, trạng thái: ${incident.state}` : 'bình thường'
+  return `${deviceId}, dây chuyền ${line}, ${statusText}`
+}
+
+function countAttentionMachines(line) {
+  return props.incidents.filter(
+    (incident) => incident.line === line && incident.state !== 'Đã đóng'
+  ).length
+}
+
+function getDevicesByLine(line) {
+  return devices.filter((device) => device.line === line)
+}
+
+function handleSelectDevice(deviceId) {
+  emit('select', deviceId)
+}
+</script>
+
+<template>
+  <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+    <div class="flex flex-wrap items-center gap-3 justify-between">
+      <h2>Thiết bị theo dây chuyền</h2>
+      <span class="text-slate-500">24 máy · 4 dây chuyền</span>
+    </div>
+
+    <div class="mt-5 grid gap-4">
+      <section
+        v-for="line in PRODUCTION_LINES"
+        :key="line"
+        class="rounded-lg border border-slate-100 p-4"
+      >
+        <div class="flex flex-wrap items-center gap-3 justify-between">
+          <h3>Dây chuyền {{ line }}</h3>
+          <small>
+            {{ countAttentionMachines(line) }} máy cần chú ý · {{ getDevicesByLine(line).length }} máy
+          </small>
+        </div>
+
+        <div class="mt-3 grid grid-cols-3 gap-2 min-[481px]:grid-cols-6">
+          <button
+            v-for="device in getDevicesByLine(line)"
+            :key="device.id"
+            class="machine"
+            :class="getMachineStatusClass(device.id)"
+            :aria-label="getMachineAriaLabel(device.id, line)"
+            @click="handleSelectDevice(device.id)"
+          >
+            {{ device.id }}
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div class="legend">
+      <span>Bình thường</span>
+      <span class="warn">Cần chú ý</span>
+      <span class="risk">Ưu tiên cao</span>
+    </div>
+  </section>
+</template>
+</file>
+
+<file path="src/components/IncidentWorkspace.vue">
+<script setup>
+import { computed, ref, watch } from 'vue'
+import DeviceSensors from './DeviceSensors.vue'
+import { createHistory } from '../mock-data/simulation.js'
+import { transitionIncident } from '../mock-data/incidents.js'
+
+const props = defineProps({
+  incident: {
+    type: Object,
+    required: true
+  },
+  initialTab: {
+    type: String,
+    default: 'analysis'
+  }
+})
+
+const emit = defineEmits(['device', 'back', 'document'])
+
+// Khai báo hằng số
+const TAB_LIST = [
+  { id: 'analysis', title: 'Phân tích & đề xuất' },
+  { id: 'approval', title: 'Phê duyệt' },
+  { id: 'verification', title: 'Sau xử lý' },
+  { id: 'timeline', title: 'Lịch sử' }
+]
+
+// Khai báo state
+const activeTab = ref(props.initialTab)
+const decisionNote = ref('')
+const draftAction = ref('')
+const errorMessage = ref('')
+const confirmDialog = ref(null)
+const pendingDecision = ref('')
+
+// Tạo dữ liệu mô phỏng trước/sau xử lý
+const historyBefore = computed(() => createHistory(props.incident.machine, true))
+const historyAfter = computed(() => createHistory(props.incident.machine, false))
+
+// Đồng bộ tab và reset dữ liệu khi chuyển sang sự cố khác
+watch(
+  () => [props.incident.id, props.initialTab],
+  () => {
+    activeTab.value = props.initialTab
+    decisionNote.value = props.incident.note
+    errorMessage.value = ''
+  }
+)
+
+function executeTransition(event, payload = {}) {
+  try {
+    transitionIncident(props.incident, event, payload)
+    errorMessage.value = ''
+    return true
+  } catch (error) {
+    errorMessage.value = error.message
+    return false
+  }
+}
+
+// Bắt đầu quy trình phê duyệt (hiển thị modal)
+function promptDecision(event) {
+  errorMessage.value = ''
+  
+  if (event !== 'approve' && !decisionNote.value.trim()) {
+    errorMessage.value = 'Nhập lý do khi từ chối hoặc chỉnh sửa.'
+    return
+  }
+  
+  pendingDecision.value = event
+  draftAction.value = props.incident.action
+  confirmDialog.value.showModal()
+}
+
+// Xác nhận quyết định từ modal
+function confirmDecision() {
+  const success = executeTransition(pendingDecision.value, {
+    note: decisionNote.value,
+    action: draftAction.value
+  })
+
+  if (success) {
+    confirmDialog.value.close()
+    if (pendingDecision.value === 'approve') activeTab.value = 'verification'
+    if (pendingDecision.value === 'reject') activeTab.value = 'timeline'
+  }
+}
+
+// Hoàn tất cửa sổ theo dõi
+function finishVerification(event) {
+  if (executeTransition(event)) {
+    if (event === 'reanalyze') {
+      activeTab.value = 'timeline'
+    }
+  }
+}
+
+function handleTabChange(tabId) {
+  activeTab.value = tabId
+  errorMessage.value = ''
+}
+</script>
+
+<template>
+  <!-- Header & Navigation -->
+  <div class="flex flex-wrap items-center gap-3 justify-between">
+    <button class="text-button" @click="emit('back')">← Danh sách cảnh báo</button>
+    <button class="text-button" @click="emit('device', incident.machine)">
+      Theo dõi cảm biến {{ incident.machine }} ↗
+    </button>
+  </div>
+
+  <div class="page-heading">
+    <div>
+      <p class="caption">Dây chuyền {{ incident.line }} / {{ incident.id }}</p>
+      <h1>{{ incident.machine }} · Chi tiết sự cố</h1>
+      <p>{{ incident.title }} · Phát hiện {{ incident.time }}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <span class="badge" :class="incident.risk === 'Cao' ? 'red' : 'amber'">
+        {{ incident.risk }}
+      </span>
+      <span class="badge">{{ incident.state }}</span>
+    </div>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <div class="tabs" aria-label="Nội dung sự cố">
+    <button
+      v-for="tab in TAB_LIST"
+      :key="tab.id"
+      :class="{ active: activeTab === tab.id }"
+      :aria-pressed="activeTab === tab.id"
+      @click="handleTabChange(tab.id)"
+    >
+      {{ tab.title }}
+    </button>
+  </div>
+
+  <p v-if="errorMessage" role="alert" class="text-red-700">{{ errorMessage }}</p>
+
+  <!-- TAB 1: Phân tích & Đề xuất -->
+  <template v-if="activeTab === 'analysis'">
+    <div class="grid items-start gap-5 min-[1201px]:grid-cols-[1.2fr_1fr]">
+      <DeviceSensors :samples="historyBefore" :start="-1800" :end="0" :marker="-300" compact />
+      
+      <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+        <div class="flex flex-wrap items-center gap-3 justify-between">
+          <h2>Kết quả phát hiện bất thường</h2>
+          <span class="badge">Minh họa</span>
+        </div>
+        
+        <div class="metric-line">
+          <span>Điểm bất thường</span>
+          <strong>{{ incident.score.toFixed(2) }} / 1</strong>
+        </div>
+        <p class="caption">Không phải xác suất rò khí. Chưa kết nối mô hình học máy.</p>
+        
+        <div class="notice warning">
+          Nghi vấn: rò khí hoặc nhu cầu sử dụng khí tăng. Cần kiểm tra để phân biệt.
+        </div>
+        
+        <h2>Tóm tắt phân tích & bằng chứng</h2>
+        <ol class="reason-list">
+          <li>
+            <h3>Quan sát tín hiệu</h3>
+            <p>Áp suất giảm nhanh hơn đoạn nền; động cơ nén thường xuyên hơn.</p>
+          </li>
+          <li>
+            <h3>Đối chiếu thông tin</h3>
+            <p>Chưa có dữ liệu nhu cầu khí và kết quả kiểm tra hiện trường.</p>
+          </li>
+          <li>
+            <h3>Đề xuất kiểm tra</h3>
+            <p>Xác nhận nguyên nhân trước khi can thiệp thiết bị.</p>
+          </li>
+        </ol>
+        
+        <details>
+          <summary>Nhật ký thao tác của trợ lý</summary>
+          <p>Đọc cảm biến → nhận điểm bất thường → tìm tài liệu → soạn đề xuất. Các bước thực hiện được minh họa, chưa kết nối AI.</p>
+        </details>
+        
+        <button class="source" @click="emit('document', 'sop')">↗ SOP-07 · Quy trình kiểm tra khí nén</button>
+        <button class="source" @click="emit('document', 'case')">↗ SC-011 · Hồ sơ sự cố tham khảo</button>
+      </section>
+    </div>
+
+    <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 mt-5">
+      <h2>Phương án đề xuất</h2>
+      <p>{{ incident.action }}</p>
+      
+      <button v-if="incident.state === 'Chờ duyệt'" class="button primary" @click="activeTab = 'approval'">
+        Xem & duyệt đề xuất
+      </button>
+      <button v-else-if="['Mới', 'Đang phân tích'].includes(incident.state)" class="button primary" @click="executeTransition('analyze') && (activeTab = 'approval')">
+        Hoàn tất phân tích (demo)
+      </button>
+      <button v-else class="button" @click="activeTab = 'verification'">
+        Theo dõi xử lý
+      </button>
+    </section>
+  </template>
+
+  <!-- TAB 2: Phê duyệt -->
+  <template v-else-if="activeTab === 'approval'">
+    <div v-if="incident.state === 'Chờ duyệt'" class="grid gap-5 min-[801px]:grid-cols-2">
+      <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+        <h2>Quyết định của trưởng ca</h2>
+        <div class="notice">{{ incident.action }}</div>
+        <p>Duyệt đề xuất là giao việc kiểm tra cho kỹ thuật viên; không tự gửi lệnh điều khiển máy.</p>
+        
+        <label class="field">
+          Ghi chú / lý do
+          <textarea v-model="decisionNote" placeholder="Bắt buộc khi từ chối hoặc chỉnh sửa" />
+        </label>
+        
+        <div class="flex flex-wrap items-center gap-3">
+          <button class="button primary" @click="promptDecision('approve')">Duyệt đề xuất</button>
+          <button class="button danger" @click="promptDecision('reject')">Từ chối</button>
+          <button class="button" @click="promptDecision('edit')">Chỉnh sửa</button>
+        </div>
+      </section>
+      
+      <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+        <h2>Thông tin phê duyệt</h2>
+        <div class="metric-line"><span>Người duyệt</span><span>Nguyễn An · Trưởng ca</span></div>
+        <div class="metric-line"><span>Gửi đề xuất lúc</span><span>{{ incident.time }}</span></div>
+        <p>Mọi quyết định được ghi vào lịch sử sự cố trong phiên demo.</p>
+      </section>
+    </div>
+
+    <section v-else class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+      <h2>{{ ['Đang xử lý', 'Đang theo dõi', 'Đã đóng'].includes(incident.state) ? 'Đề xuất đã được duyệt' : 'Chưa có đề xuất chờ duyệt' }}</h2>
+      <p>Trạng thái hiện tại: {{ incident.state }}.</p>
+      <button class="button" @click="activeTab = 'timeline'">Xem lịch sử quyết định</button>
+    </section>
+  </template>
+
+  <!-- TAB 3: Theo dõi sau xử lý -->
+  <template v-else-if="activeTab === 'verification'">
+    <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+      <div class="flex flex-wrap items-center gap-3 justify-between">
+        <h2>Theo dõi sau xử lý</h2>
+        <span class="badge" :class="{ 'green': incident.state === 'Đã đóng' }">{{ incident.state }}</span>
+      </div>
+      
+      <template v-if="['Đang xử lý', 'Đang theo dõi', 'Đã đóng'].includes(incident.state)">
+        <p>{{ incident.machine }} · Cửa sổ theo dõi 20 phút (mô phỏng)</p>
+        <progress :value="incident.progress" max="20" aria-label="Tiến trình theo dõi sau xử lý" />
+        
+        <div class="flex flex-wrap items-center gap-3 justify-between">
+          <span>{{ incident.progress }} / 20 phút</span>
+          <button v-if="incident.state === 'Đang xử lý'" class="button primary" @click="executeTransition('start')">Xác nhận đã thực hiện (demo)</button>
+          <button v-if="incident.state === 'Đang theo dõi' && incident.progress < 20" class="button primary" @click="executeTransition('advance')">Tiến thêm 5 phút (demo)</button>
+        </div>
+        
+        <template v-if="incident.state === 'Đang theo dõi' && incident.progress === 20">
+          <div class="notice">Đã đủ cửa sổ theo dõi minh họa. Chọn kết quả để thử hai nhánh xử lý.</div>
+          <div class="flex flex-wrap items-center gap-3">
+            <button class="button primary" @click="finishVerification('close')">Ổn định → Đóng sự cố</button>
+            <button class="button danger" @click="finishVerification('reanalyze')">Vẫn bất thường → Phân tích lại</button>
+          </div>
+        </template>
+        
+        <div v-if="incident.state === 'Đã đóng'" class="notice">Đã xác nhận ổn định và đóng sự cố.</div>
+      </template>
+      
+      <template v-else>
+        <p>Đề xuất cần được duyệt và kỹ thuật viên xác nhận đã thực hiện trước khi theo dõi.</p>
+        <button class="button" @click="activeTab = incident.state === 'Chờ duyệt' ? 'approval' : 'analysis'">Quay lại đề xuất</button>
+      </template>
+    </section>
+    
+    <section v-if="incident.progress > 0" class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 mt-5">
+      <h2>So sánh trước / sau · dữ liệu mẫu</h2>
+      <p>Kết quả mẫu minh họa trường hợp ổn định. Kỹ thuật viên vẫn cần xác nhận kết quả thực tế.</p>
+      <div class="grid gap-5 min-[1201px]:grid-cols-2">
+        <div>
+          <h3>Trước xử lý</h3>
+          <DeviceSensors :samples="historyBefore" :start="-900" :end="0" :marker="-300" compact />
+        </div>
+        <div>
+          <h3>Sau xử lý</h3>
+          <DeviceSensors :samples="historyAfter" :start="-900" :end="0" compact />
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <!-- TAB 4: Lịch sử -->
+  <section v-else class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+    <h2>Lịch sử {{ incident.id }} · {{ incident.machine }}</h2>
+    <ol class="timeline">
+      <li v-for="(event, index) in incident.history" :key="index">
+        <h3>{{ event.text }}</h3>
+        <p>{{ event.time }} · {{ event.actor }}</p>
+      </li>
+    </ol>
+  </section>
+
+  <!-- Dialog xác nhận quyết định -->
+  <dialog ref="confirmDialog" aria-labelledby="decision-title">
+    <h2 id="decision-title">
+      {{ pendingDecision === 'edit' ? 'Chỉnh sửa phương án' : pendingDecision === 'approve' ? 'Xác nhận duyệt đề xuất ? ' : 'Xác nhận từ chối đề xuất?' }}
+    </h2>
+    <p>{{ incident.id }} · {{ incident.machine }}</p>
+    
+    <label v-if="pendingDecision === 'edit'" class="field">
+      Phương án
+      <textarea v-model="draftAction" />
+    </label>
+    <p v-else>{{ decisionNote || 'Không có ghi chú bổ sung.' }}</p>
+    
+    <p v-if="errorMessage" role="alert" class="text-red-700">{{ errorMessage }}</p>
+    
+    <div class="flex flex-wrap items-center gap-3">
+      <button class="button" @click="confirmDialog.close()">Quay lại</button>
+      <button class="button primary" @click="confirmDecision">
+        {{ pendingDecision === 'edit' ? 'Lưu phương án' : 'Xác nhận' }}
+      </button>
+    </div>
+  </dialog>
+</template>
+</file>
+
+<file path="src/style.css">
+@import "tailwindcss";
+
+@theme {
+    --font-sans: 'Inter', 'Segoe UI', Arial, sans-serif;
+}
+
+/* Các style đặc thù nằm ở layer components; utilities Tailwind luôn được ưu tiên. */
+@layer components {
+:root {
+    font-family: var(--font-sans);
+    font-synthesis: none;
+    color: #17243b;
+    background: #f5f7fb;
+    color-scheme: light;
+    font-size: 16px;
+    --muted: #67768d;
+    --blue: #3563e9;
+    --border: #e3e8ef
+}
+
+* {
+    box-sizing: border-box
+}
+
+body {
+    margin: 0;
+    min-width: 320px
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit
+}
+
+button,
+a {
+    touch-action: manipulation
+}
+
+button {
+    cursor: pointer
+}
+
+a {
+    color: inherit;
+    text-decoration: none
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+    outline: 2px solid #3563e9;
+    outline-offset: 3px
+}
+
+h1,
+h2,
+h3,
+p {
+    margin: 0
+}
+
+h1 {
+    font-size: 1.75rem;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: -.7px
+}
+
+h2 {
+    font-size: 1.0625rem;
+    font-weight: 600
+}
+
+h3 {
+    font-size: .9375rem;
+    font-weight: 550
+}
+
+p {
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 9px 0 15px;
+    font-size: .9375rem
+}
+
+small,
+.caption {
+    font-size: .8125rem;
+    color: var(--muted)
+}
+
+small {
+    display: inline-block
+}
+
+.sidebar {
+    width: 225px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    background: white;
+    padding: 28px 16px;
+    display: flex;
+    flex-direction: column
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -.7px
+}
+
+.brand>span {
+    display: grid;
+    place-items: center;
+    padding: 5px;
+    border-radius: 7px;
+    background: #edf2ff;
+    color: var(--blue)
+}
+
+.sidebar-label {
+    font-size: .75rem;
+    letter-spacing: 1.2px;
+    margin: 12px 4px 36px
+}
+
+.sidebar nav {
+    display: grid;
+    gap: 6px
+}
+
+.sidebar nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 10px;
+    border-radius: 6px;
+    font-size: .875rem;
+    color: #68788f
+}
+
+.sidebar nav a svg {
+    flex-shrink: 0
+}
+
+.sidebar nav a.active {
+    background: #eaf0ff;
+    color: #315ccd
+}
+
+.sidebar nav a:hover {
+    background: #f2f5fc;
+    color: #315ccd
+}
+
+.sidebar .badge {
+    margin-left: auto
+}
+
+.sidebar-bottom {
+    margin-top: auto;
+    padding: 60px 9px 0
+}
+
+.sidebar-bottom small {
+    font-size: .75rem
+}
+
+.sidebar-bottom p {
+    color: #344863
+}
+
+.sidebar-bottom p small {
+    display: block
+}
+
+.topbar {
+    background: white;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    font-size: .875rem;
+    flex-wrap: wrap
+}
+
+.demo-label {
+    border: 1px solid #e4e8ef;
+    border-radius: 4px;
+    padding: 5px 8px;
+    background: #f6f8fa;
+    color: #647187;
+    font-size: .75rem;
+    letter-spacing: .7px
+}
+
+.avatar {
+    width: 30px;
+    height: 30px;
+    background: #edf1f9;
+    border: 1px solid #dfe6f1;
+    color: #48628d;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: .75rem
+}
+
+main {
+    padding: 28px;
+    max-width: 1700px;
+    margin: auto
+}
+
+.page-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin: 8px 0 24px
+}
+
+.page-heading p {
+    margin: 8px 0 0;
+    font-size: .875rem
+}
+
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 15px;
+    margin-bottom: 22px
+}
+
+.kpis article {
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: #fff;
+    padding: 18px;
+    font-size: .875rem;
+    color: #5e6e85
+}
+
+.kpis article:first-child {
+    border-top: 3px solid var(--blue);
+    padding-top: 16px
+}
+
+.kpis strong {
+    display: block;
+    font-size: 2rem;
+    font-weight: 550;
+    color: #1c2d4a;
+    font-variant-numeric: tabular-nums;
+    margin: 15px 0 5px;
+    line-height: 1.2
+}
+
+.kpis strong small {
+    font-size: 1rem
+}
+
+.machine {
+    padding: 13px 3px;
+    background: #f2f9f5;
+    color: #287354;
+    border: 1px solid #dfebe3;
+    border-radius: 5px;
+    font-size: .8125rem
+}
+
+.machine.warning {
+    background: #fff7e8;
+    color: #95620f;
+    border-color: #ecd9b2
+}
+
+.machine.critical {
+    background: #fff0f0;
+    color: #bc4545;
+    border-color: #f0c9c9
+}
+
+.machine:hover {
+    box-shadow: 0 0 0 2px var(--blue)
+}
+
+.legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: .8125rem;
+    margin-top: 19px
+}
+
+.legend span:before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: #4a9e72;
+    margin-right: 6px
+}
+
+.legend .warn:before {
+    background: #c28e37
+}
+
+.legend .risk:before {
+    background: #cd6b6b
+}
+
+.badge {
+    display: inline-flex;
+    border-radius: 4px;
+    padding: 4px 8px;
+    background: #edf1f7;
+    color: #51627c;
+    font-size: .8125rem;
+    white-space: nowrap;
+    align-items: center
+}
+
+.badge.amber {
+    background: #fff4df;
+    color: #9b6510
+}
+
+.badge.red {
+    background: #fceced;
+    color: #b94343
+}
+
+.badge.green {
+    background: #edf8f1;
+    color: #277855
+}
+
+.button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 14px;
+    border: 1px solid #d9e1ed;
+    border-radius: 6px;
+    background: white;
+    color: #304561;
+    font-size: .875rem;
+    min-height: 40px
+}
+
+.button.primary {
+    background: #3563e9;
+    border-color: #3563e9;
+    color: white
+}
+
+.button.primary:hover {
+    background: #2852d0
+}
+
+.button.danger {
+    background: #fff5f5;
+    border-color: #e8bdbd;
+    color: #b94343
+}
+
+.text-button {
+    border: 0;
+    background: transparent;
+    color: #315ccd;
+    font-size: .875rem;
+    text-align: left;
+    padding: 4px 0
+}
+
+.text-button:hover {
+    text-decoration: underline
+}
+
+.feed-row {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px
+}
+
+.feed-row:last-child {
+    border: 0
+}
+
+.feed-row p {
+    margin: 6px 0;
+    font-size: .875rem
+}
+
+.feed-row small {
+    font-size: .8125rem
+}
+
+.chart-picker {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: .8125rem;
+    margin-top: 16px
+}
+
+.chart-picker select {
+    font-size: .8125rem;
+    padding: 7px;
+    max-width: 100%
+}
+
+.caption {
+    margin: 10px 0 0;
+    line-height: 1.5
+}
+
+.sensor-value {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 16px;
+    font-size: .8125rem
+}
+
+.sensor-value>div {
+    margin: 9px 0 6px
+}
+
+.sensor-value strong {
+    font-size: 1.6rem;
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
+    color: #203957
+}
+
+.digital-values {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 11px;
+    margin: 19px 0
+}
+
+.digital-values>div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #e7ecf3;
+    border-radius: 6px;
+    background: #fafbfd;
+    font-size: .8125rem;
+    overflow-wrap: anywhere
+}
+
+.bit {
+    padding: 3px 7px;
+    background: #e9edf2;
+    color: #69788d;
+    border-radius: 4px;
+    font-weight: 500;
+    flex-shrink: 0
+}
+
+.bit.one {
+    background: #e9f0ff;
+    color: #3563e9
+}
+
+.device-strip {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px
+}
+
+.range-buttons {
+    display: flex;
+    gap: 3px;
+    border: 1px solid #dbe3ef;
+    border-radius: 6px;
+    background: #fff;
+    padding: 3px
+}
+
+.range-buttons button {
+    border: 0;
+    padding: 7px 11px;
+    color: #64748b;
+    background: transparent;
+    font-size: .8125rem;
+    border-radius: 4px
+}
+
+.range-buttons button.active {
+    background: #edf2ff;
+    color: #315ccc
+}
+
+input,
+select,
+textarea {
+    border: 1px solid #dbe2ed;
+    border-radius: 6px;
+    padding: 10px;
+    background: white;
+    color: #304560;
+    max-width: 100%;
+    font-size: .875rem
+}
+
+textarea {
+    min-height: 100px;
+    width: 100%;
+    resize: vertical
+}
+
+.field {
+    display: grid;
+    gap: 8px;
+    margin: 20px 0;
+    font-size: .875rem;
+    color: #52637c
+}
+
+.simulation-controls {
+    margin-bottom: 20px
+}
+
+.simulation-controls label {
+    display: grid;
+    gap: 8px;
+    font-size: .8125rem;
+    color: #52637c
+}
+
+.simulation-controls select {
+    min-width: 108px
+}
+
+.simulation-status {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 20px 0 12px;
+    font-size: .8125rem;
+    color: var(--muted)
+}
+
+.simulation-status>strong {
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+    color: #203b63;
+    font-variant-numeric: tabular-nums
+}
+
+.filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 17px
+}
+
+.filters input {
+    flex: 1;
+    min-width: 160px
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: .875rem
+}
+
+th {
+    text-align: left;
+    font-weight: 500;
+    color: #6a7b91;
+    background: #f8fafd;
+    font-size: .8125rem;
+    padding: 13px 9px;
+    border-bottom: 1px solid var(--border)
+}
+
+td {
+    padding: 17px 9px;
+    border-bottom: 1px solid var(--border)
+}
+
+td small {
+    display: block;
+    margin-top: 5px
+}
+
+tr:last-child td {
+    border: 0
+}
+
+.tabs {
+    display: flex;
+    gap: 22px;
+    border-bottom: 1px solid var(--border);
+    margin: 0 0 22px;
+    flex-wrap: wrap
+}
+
+.tabs button {
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 13px 0;
+    color: var(--muted);
+    font-size: .875rem
+}
+
+.tabs button.active {
+    color: var(--blue);
+    border-color: var(--blue)
+}
+
+.metric-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 17px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: .875rem
+}
+
+.notice {
+    background: #edf4ff;
+    border-left: 3px solid #3563e9;
+    border-radius: 5px;
+    padding: 14px 16px;
+    margin: 18px 0;
+    font-size: .9375rem;
+    line-height: 1.6
+}
+
+.notice.warning {
+    background: #fff8e9;
+    border-color: #c28e37
+}
+
+.reason-list {
+    padding: 0;
+    list-style: none;
+    counter-reset: step
+}
+
+.reason-list li {
+    counter-increment: step;
+    position: relative;
+    padding: 15px 0 0 34px
+}
+
+.reason-list li:before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 14px;
+    border-radius: 50%;
+    width: 23px;
+    height: 23px;
+    background: #edf2ff;
+    color: #3563e9;
+    display: grid;
+    place-items: center;
+    font-size: .75rem
+}
+
+.reason-list p {
+    font-size: .875rem;
+    margin: 7px 0
+}
+
+.source {
+    display: block;
+    width: 100%;
+    background: #f4f7fc;
+    color: #46618d;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 12px;
+    text-align: left;
+    font-size: .875rem;
+    margin-top: 10px
+}
+
+details {
+    margin-top: 15px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    font-size: .875rem
+}
+
+summary {
+    cursor: pointer
+}
+
+details p {
+    font-size: .875rem
+}
+
+.timeline {
+    list-style: none;
+    padding: 0 0 0 9px;
+    margin: 28px 0 0
+}
+
+.timeline li {
+    border-left: 1px solid #d0dcf2;
+    padding: 0 0 26px 22px;
+    position: relative
+}
+
+.timeline li:before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    background: #3563e9;
+    border-radius: 50%;
+    position: absolute;
+    left: -5px;
+    top: 5px
+}
+
+.timeline p {
+    font-size: .8125rem;
+    margin: 6px 0 0
+}
+
+progress {
+    appearance: none;
+    display: block;
+    width: 100%;
+    height: 9px;
+    margin: 20px 0;
+    background: #e7edf7;
+    border: 0;
+    border-radius: 6px;
+    overflow: hidden
+}
+
+progress::-webkit-progress-bar {
+    background: #e7edf7
+}
+
+progress::-webkit-progress-value {
+    background: #3563e9
+}
+
+progress::-moz-progress-bar {
+    background: #3563e9
+}
+
+.icon-button {
+    display: grid;
+    place-items: center;
+    border: 0;
+    padding: 5px;
+    background: transparent;
+    color: #506582
+}
+
+.mobile-toggle {
+    display: none
+}
+
+dialog {
+    border: 1px solid #d8e1ee;
+    border-radius: 11px;
+    padding: 26px;
+    background: white;
+    color: #17243b;
+    max-width: min(540px, 90vw);
+    margin: auto;
+    max-height: 85vh;
+    overflow-y: auto
+}
+
+dialog::backdrop {
+    background: #17243b70
+}
+
+footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+    margin-top: 28px;
+    padding-top: 17px;
+    color: var(--muted);
+    font-size: .75rem
+}
+
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 15px;
+    padding: 10px;
+    background: #3563e9;
+    color: white;
+    z-index: 30
+}
+
+.skip-link:focus {
+    top: 10px
+}
+
+@media(min-width:1550px) {
+}
+
+@media(max-width:1200px) {
+    .sidebar {
+        width: 205px;
+        padding-inline: 12px
+    }
+
+    .brand {
+        font-size: 1.05rem
+    }
+
+    main {
+        padding: 23px
+    }
+
+    .digital-values {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+
+    .kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+}
+
+@media(max-width:800px) {
+
+    .sidebar {
+        width: 100%;
+        padding: 15px 18px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border)
+    }
+
+    .sidebar-label,
+    .sidebar-bottom {
+        display: none
+    }
+
+    .sidebar nav {
+        display: none;
+        margin-top: 14px;
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+
+    .sidebar.open nav {
+        display: grid
+    }
+
+    .mobile-toggle {
+        display: grid
+    }
+
+    .topbar {
+        padding: 15px 18px
+    }
+
+    main {
+        padding: 20px
+    }
+
+    .brand {
+        font-size: 1.15rem
+    }
+}
+
+@media(max-width:480px) {
+    main {
+        padding: 16px
+    }
+
+    h1 {
+        font-size: 1.45rem
+    }
+
+    .kpis {
+        gap: 10px
+    }
+
+    .kpis article {
+        padding: 14px
+    }
+
+    .kpis strong {
+        font-size: 1.8rem
+    }
+
+    .kpis article:first-child {
+        padding-top: 12px
+    }
+
+    .digital-values {
+        grid-template-columns: 1fr
+    }
+
+    .sensor-value {
+        padding: 13px
+    }
+
+    .sensor-value strong {
+        font-size: 1.4rem
+    }
+
+    .chart-picker {
+        justify-content: flex-start
+    }
+
+    .chart-picker select {
+        width: 100%
+    }
+
+    .filters>* {
+        width: 100%
+    }
+
+    .filters input {
+        min-width: 0
+    }
+
+    .tabs {
+        gap: 15px
+    }
+
+    .badge {
+        white-space: normal
+    }
+
+    .simulation-controls select {
+        min-width: 95px
+    }
+
+    .legend {
+        gap: 10px
+    }
+
+    input,
+    select,
+    textarea {
+        font-size: 1rem
+    }
+}
+
+@media(prefers-reduced-motion:reduce) {
+    * {
+        scroll-behavior: auto !important
+    }
+}
+}
+</file>
+
+<file path="src/components/MachineViewport.vue">
+<script setup>
+import { Box, Maximize2 } from 'lucide-vue-next'
+// TODO: Tích hợp thư viện 3D tại đây trong tương lai
+// import { onMounted, ref } from 'vue'
+// import * as THREE from 'three'
+
+// const canvasRef = ref(null)
+</script>
+
+<template>
+  <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 viewport-panel" aria-labelledby="machine-heading">
+    <!-- Header -->
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">KHÔNG GIAN THIẾT BỊ</p>
+        <h2 id="machine-heading">Máy nén khí</h2>
+      </div>
+      <button 
+        class="icon-button" 
+        aria-label="Phóng to mô hình 3D"
+        title="Toàn màn hình"
+      >
+        <Maximize2 :size="18" aria-hidden="true" />
+      </button>
+    </div>
+
+    <!-- 3D Canvas Placeholder -->
+    <div class="machine-viewport">
+      <span class="viewport-caption">APU–01 / METROPT-3</span>
+      
+      <div class="viewport-empty">
+        <div class="model-icon">
+          <Box :size="42" :stroke-width="1" aria-hidden="true" />
+        </div>
+        <h3>Vùng hiển thị mô hình 3D</h3>
+        <p>Mô hình máy nén sẽ xuất hiện tại đây.</p>
+        <span class="neutral-tag">Chưa có mô hình</span>
+        
+        <!-- Canvas cho Three.js/Babylon.js -->
+        <!-- <canvas ref="canvasRef" class="webgl-canvas"></canvas> -->
+      </div>
+      
+      <span class="viewport-footer">MÁY NÉN · BÌNH KHÍ · ĐƯỜNG ỐNG</span>
+    </div>
+
+    <!-- Thông số phụ -->
+    <div class="machine-summary">
+      <div>
+        <span>Thiết bị</span>
+        <strong>APU–01</strong>
+      </div>
+      <div>
+        <span>Nguồn dữ liệu</span>
+        <strong>Chưa kết nối</strong>
+      </div>
+      <div>
+        <span>Trạng thái</span>
+        <strong>Chưa xác định</strong>
+      </div>
+    </div>
+  </section>
+</template>
+</file>
+
+<file path="src/components/SensorPanel.vue">
+<script setup>
+import { computed, useId } from 'vue'
+import VueApexCharts from 'vue3-apexcharts'
+import { makeSensorOptions, toSensorPoints } from '../utils/sensorChart.js'
+
+const props = defineProps({
+  samples: { type: Array, required: true },
+  sensor: { type: Object, required: true },
+  color: { type: String, default: '#3563e9' },
+  start: { type: Number, required: true },
+  end: { type: Number, required: true },
+  relative: { type: Boolean, default: false },
+  marker: { type: Number, default: null },
+  hover: { type: Number, default: null },
+  chartGroup: { type: String, default: '' },
+})
+const emit = defineEmits(['hover'])
+const chartId = `sensor-${useId()}`
+const points = computed(() => toSensorPoints(props.samples, props.sensor.key, props.start, props.end))
+
+// VueApexCharts tự cập nhật khi series thay đổi; không cần tự dựng SVG nữa.
+const series = computed(() => [{ name: props.sensor.key, data: points.value }])
+function handlePointHover(index) {
+  const point = points.value[index]
+  if (point) emit('hover', point.x)
+}
+const chartOptions = computed(() => makeSensorOptions({
+  id: chartId, group: props.chartGroup, sensor: props.sensor, color: props.color,
+  start: props.start, end: props.end, relative: props.relative, marker: props.marker,
+  onHover: handlePointHover,
+}))
+
+// Con số phía trên biểu đồ dùng cùng thời điểm với các biểu đồ anh em.
+const activeValue = computed(() => {
+  const data = points.value
+  if (!data.length) return null
+  if (props.hover === null) return data.at(-1).y
+  const index = data.findIndex(point => point.x >= props.hover)
+  if (index === -1) return data.at(-1).y
+  if (index === 0) return data[0].y
+  const previous = data[index - 1], current = data[index]
+  const fraction = (props.hover - previous.x) / Math.max(1, current.x - previous.x)
+  return previous.y + (current.y - previous.y) * fraction
+})
+</script>
+
+<template>
+  <article class="mt-4 min-w-0" :aria-label="`${sensor.name}, đơn vị ${sensor.unit}, dữ liệu giả lập`">
+    <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 text-sm">
+      <span>{{ sensor.key }} <small class="text-slate-500">· {{ sensor.name }} ({{ sensor.unit }})</small></span>
+      <output class="text-sm tabular-nums text-slate-600">{{ activeValue === null ? '—' : activeValue.toFixed(sensor.key === 'DV_pressure' ? 3 : 2) }} {{ sensor.unit }}</output>
+    </div>
+    <VueApexCharts type="line" height="230" width="100%" :options="chartOptions" :series="series" />
+  </article>
+</template>
+</file>
+
+<file path="src/App.vue">
+<script setup>
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Activity, Bell, BookOpen, Building2, ChevronRight, Factory, FlaskConical, History, LayoutDashboard, Menu, ShieldCheck } from 'lucide-vue-next'
+
+// Components
+import FleetMap from './components/FleetMap.vue'
+import DeviceSensors from './components/DeviceSensors.vue'
+import IncidentWorkspace from './components/IncidentWorkspace.vue'
+import AlertTable from './components/AlertTable.vue'
+import SensorPanel from './components/SensorPanel.vue'
+
+// Logic & Dữ liệu
+import { createHistory, devices, formatTime, LEAK_START, SIMULATION_DURATION } from './mock-data/simulation.js'
+import { createIncidents } from './mock-data/incidents.js'
+import { useSimulation } from './mock-data/useSimulation.js'
+
+// Hằng số Navigation
+const NAVIGATION_MENU = [
+  { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard },
+  { id: 'machines', label: 'Thiết bị', icon: Factory },
+  { id: 'simulation', label: 'Mô phỏng', icon: FlaskConical },
+  { id: 'alerts', label: 'Cảnh báo', icon: Bell },
+  { id: 'approvals', label: 'Chờ duyệt', icon: ShieldCheck },
+  { id: 'history', label: 'Lịch sử xử lý', icon: History },
+  { id: 'knowledge', label: 'Tài liệu kỹ thuật', icon: BookOpen }
+]
+
+const ALLOWED_ROUTES = [...NAVIGATION_MENU.map(n => n.id), 'device', 'incident']
+
+// Trạng thái toàn cục (Global State)
+const currentView = ref('overview')
+const deviceId = ref('APU-09')
+const incidentId = ref('SC-024')
+const incidentTab = ref('analysis')
+const isMenuOpen = ref(false)
+const windowMinutes = ref(15)
+
+const incidentsList = ref(createIncidents())
+const documentDialogRef = ref(null)
+const documentType = ref('sop')
+
+// Hook Mô phỏng
+const { session, isRunning, currentScenario, playbackSpeed, pause, reset, play } = useSimulation()
+
+// Computed Properties: Xử lý dữ liệu hiển thị
+const openIncidents = computed(() => incidentsList.value.filter(a => a.state !== 'Đã đóng'))
+const pendingIncidents = computed(() => incidentsList.value.filter(a => a.state === 'Chờ duyệt'))
+const selectedIncident = computed(() => incidentsList.value.find(a => a.id === incidentId.value) || incidentsList.value[0])
+
+const deviceIncident = computed(() => openIncidents.value.find(a => a.machine === deviceId.value))
+const deviceHistory = computed(() => createHistory(deviceId.value, !!deviceIncident.value))
+const deviceLine = computed(() => devices.find(d => d.id === deviceId.value)?.line)
+
+const activeNavMenu = computed(() => {
+  if (currentView.value === 'device') return 'machines'
+  if (currentView.value === 'incident') return 'alerts'
+  return currentView.value
+})
+
+const pageTitle = computed(() => {
+  const navItem = NAVIGATION_MENU.find(n => n.id === activeNavMenu.value)
+  return navItem ? navItem.label : 'Tổng quan'
+})
+
+const latestSimSample = computed(() => session.value.samples.at(-1))
+const trendSamples = [1, 2, 1, 3, 2, 4, 3, 5].map((value, index) => ({ time: (index - 7) * 3600, count: value }))
+
+// Router thủ công (Hash-based Routing)
+function navigateTo(nextView, id = '', tab = 'analysis') {
+  const hashParts = [nextView, id, tab === 'analysis' ? '' : tab].filter(Boolean)
+  window.location.hash = hashParts.join('/')
+}
+
+function parseHashRoute() {
+  const [nextView, id, tab] = window.location.hash.slice(1).split('/')
+
+  currentView.value = ALLOWED_ROUTES.includes(nextView) ? nextView : 'overview'
+
+  if (['device', 'simulation'].includes(nextView) && devices.some(d => d.id === id)) {
+    deviceId.value = id
+  }
+
+  if (nextView === 'incident' && incidentsList.value.some(a => a.id === id)) {
+    incidentId.value = id
+  }
+
+  const validTabs = ['analysis', 'approval', 'verification', 'timeline']
+  incidentTab.value = validTabs.includes(tab) ? tab : 'analysis'
+  isMenuOpen.value = false
+}
+
+// Handlers UI
+function handleOpenDevice(id) {
+  navigateTo('device', id)
+}
+
+function handleOpenIncident(id, tab = 'analysis') {
+  navigateTo('incident', id, tab)
+}
+
+function handleOpenSimulation() {
+  reset(deviceId.value)
+  navigateTo('simulation', deviceId.value)
+}
+
+function handleSelectDevice(event) {
+  navigateTo(currentView.value, event.target.value)
+}
+
+function handleOpenDocument(type) {
+  documentType.value = type
+  documentDialogRef.value.showModal()
+}
+
+// Theo dõi thay đổi trạng thái
+watch(currentView, (newView) => {
+  if (newView !== 'simulation') pause()
+})
+watch(deviceId, () => reset(deviceId.value))
+watch(currentScenario, () => reset(deviceId.value))
+
+// Lifecycle
+onMounted(() => {
+  parseHashRoute()
+  window.addEventListener('hashchange', parseHashRoute)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', parseHashRoute)
+})
+</script>
+
+<template>
+  <div class="block min-h-screen min-[801px]:flex">
+    <a class="skip-link" href="#main-content">Đến nội dung chính</a>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" :class="{ open: isMenuOpen }">
+      <a class="brand" href="#overview">
+        <span></span>FactoryDoctor
+      </a>
+      <p class="sidebar-label">DENSO · NHÓM A1</p>
+
+      <nav aria-label="Điều hướng chính">
+        <a
+          v-for="nav in NAVIGATION_MENU"
+          :key="nav.id"
+          :href="`#${nav.id}`"
+          :class="{ active: activeNavMenu === nav.id }"
+          :aria-current="activeNavMenu === nav.id ? 'page' : undefined"
+        >
+          <component :is="nav.icon" :size="18" aria-hidden="true" />
+          {{ nav.label }}
+          <span
+            v-if="nav.id === 'approvals' && pendingIncidents.length"
+            class="badge amber"
+          >
+            {{ pendingIncidents.length }}
+          </span>
+        </a>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <small>CA SÁNG · 08:00–16:00</small>
+        <p>Nguyễn An<small>Trưởng ca bảo trì · Demo</small></p>
+      </div>
+    </aside>
+
+    <div class="min-w-0 flex-1">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="icon-button mobile-toggle"
+            :aria-expanded="isMenuOpen"
+            aria-label="Mở hoặc đóng menu"
+            @click="isMenuOpen = !isMenuOpen"
+          >
+            <Menu :size="20" />
+          </button>
+          <Building2 :size="18" aria-hidden="true" />
+          <span>Nhà máy A1</span>
+          <ChevronRight :size="14" aria-hidden="true" />
+          <span class="text-slate-500">{{ pageTitle }}</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="demo-label">DỮ LIỆU MẪU</span>
+          <span class="avatar">AN</span>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main id="main-content">
+        <!-- VIEW: Tổng quan -->
+        <template v-if="currentView === 'overview'">
+          <div class="page-heading">
+            <div>
+              <h1>Tổng quan nhà máy</h1>
+              <p>Thứ Tư, 09 tháng 09, 2026 · Ca sáng</p>
+            </div>
+            <button class="button primary" @click="navigateTo('alerts')">Xem cảnh báo</button>
+          </div>
+
+          <div class="kpis">
+            <article>
+              <span>Cảnh báo đang mở</span>
+              <strong>{{ openIncidents.length.toString().padStart(2, '0') }}</strong>
+              <small>{{ pendingIncidents.length }} đề xuất chờ duyệt</small>
+            </article>
+            <article>
+              <span>Đã xử lý hôm nay</span>
+              <strong>{{ 18 + incidentsList.filter(a => a.state === 'Đã đóng').length }}</strong>
+              <small>Đã xác nhận và đóng</small>
+            </article>
+            <article>
+              <span>Xử lý đạt lần đầu</span>
+              <strong>89<small>%</small></strong>
+              <small>16 / 18 ca trước phiên demo</small>
+            </article>
+            <article>
+              <span>Phản hồi trung bình</span>
+              <strong>4.2 <small>phút</small></strong>
+              <small>Phát hiện → tiếp nhận · Mẫu</small>
+            </article>
+          </div>
+
+          <div class="grid items-start gap-5 min-[1201px]:grid-cols-[1.15fr_1fr]">
+            <FleetMap :incidents="incidentsList" @select="handleOpenDevice" />
+            <div class="grid min-w-0 content-start gap-[18px]">
+              <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+                <h2>Cảnh báo phát sinh</h2>
+                <SensorPanel
+                  :samples="trendSamples"
+                  :sensor="{ key: 'count', name: '8 giờ gần nhất', unit: 'cảnh báo' }"
+                  :start="-25200"
+                  :end="0"
+                />
+              </section>
+              <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+                <div class="flex flex-wrap items-center gap-3 justify-between">
+                  <h2>Cần chú ý ngay</h2>
+                  <span class="badge amber">{{ openIncidents.length }} mở</span>
+                </div>
+                <div v-for="incident in openIncidents" :key="incident.id" class="feed-row">
+                  <div>
+                    <button class="text-button" @click="handleOpenIncident(incident.id)">
+                      {{ incident.machine }} <span class="text-slate-500">/ Dây chuyền {{ incident.line }}</span>
+                    </button>
+                    <p>{{ incident.title }}</p>
+                    <small>{{ incident.time }} · {{ incident.state }}</small>
+                  </div>
+                  <span class="badge" :class="incident.risk === 'Cao' ? 'red' : 'amber'">
+                    {{ incident.risk }}
+                  </span>
+                </div>
+                <p v-if="!openIncidents.length" class="p-7 text-center text-slate-500">Không còn cảnh báo đang mở.</p>
+              </section>
+            </div>
+          </div>
+        </template>
+
+        <!-- VIEW: Thiết bị -->
+        <template v-else-if="currentView === 'machines'">
+          <div class="page-heading">
+            <div>
+              <h1>Thiết bị & dây chuyền</h1>
+              <p>24 máy nén khí · Nhấn bất kỳ máy nào để xem toàn bộ cảm biến.</p>
+            </div>
+            <span class="badge green">{{ 24 - openIncidents.length }} bình thường</span>
+          </div>
+          <FleetMap :incidents="incidentsList" @select="handleOpenDevice" />
+        </template>
+
+        <!-- VIEW: Theo dõi 1 thiết bị -->
+        <template v-else-if="currentView === 'device'">
+          <button class="text-button" @click="navigateTo('machines')">← Tất cả thiết bị</button>
+          <div class="page-heading">
+            <div>
+              <h1>{{ deviceId }} · Theo dõi cảm biến</h1>
+              <p>Dây chuyền {{ deviceLine }} · Máy nén khí</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <select :value="deviceId" aria-label="Chọn thiết bị" @change="handleSelectDevice">
+                <option v-for="d in devices" :key="d.id">{{ d.id }}</option>
+              </select>
+              <button class="button primary" @click="handleOpenSimulation">Mô phỏng thiết bị</button>
+            </div>
+          </div>
+
+          <div class="device-strip">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge" :class="deviceIncident ? 'amber' : 'green'">
+                {{ deviceIncident ? 'Có cảnh báo' : 'Bình thường' }}
+              </span>
+              <small>Dữ liệu mẫu · 09/09/2026 10:00:00</small>
+            </div>
+            <button v-if="deviceIncident" class="text-button" @click="handleOpenIncident(deviceIncident.id)">
+              Xem {{ deviceIncident.id }} →
+            </button>
+            <small v-else>Không có cảnh báo đang mở</small>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 justify-between mb-4">
+            <h2>Dữ liệu vận hành</h2>
+            <div class="range-buttons">
+              <button
+                v-for="n in [15, 30, 60]"
+                :key="n"
+                :class="{ active: windowMinutes === n }"
+                :aria-pressed="windowMinutes === n"
+                @click="windowMinutes = n"
+              >
+                {{ n }} phút
+              </button>
+            </div>
+          </div>
+
+          <DeviceSensors
+            :samples="deviceHistory"
+            :start="-windowMinutes * 60"
+            :end="0"
+            :marker="deviceIncident ? -300 : null"
+          />
+        </template>
+
+        <!-- VIEW: Cảnh báo -->
+        <template v-else-if="currentView === 'alerts'">
+          <div class="page-heading">
+            <div>
+              <h1>Cảnh báo & sự cố</h1>
+              <p>Lọc theo dây chuyền, mức độ và tiến độ xử lý.</p>
+            </div>
+          </div>
+          <AlertTable :incidents="incidentsList" filters @select="handleOpenIncident" />
+        </template>
+
+        <!-- VIEW: Mô phỏng vận hành -->
+        <template v-else-if="currentView === 'simulation'">
+          <!-- Block mô phỏng... (Đã căn chỉnh thụt lề tương tự) -->
+          <div class="page-heading">
+            <div>
+              <h1>Mô phỏng vận hành</h1>
+              <p>Thử kịch bản và quan sát phản ứng của các cảm biến.</p>
+            </div>
+            <span class="badge">Không điều khiển thiết bị</span>
+          </div>
+          <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 simulation-controls">
+            <div class="flex flex-wrap items-center gap-3 justify-between">
+              <div class="flex flex-wrap items-center gap-3">
+                <label>
+                  Thiết bị
+                  <select :value="deviceId" @change="handleSelectDevice">
+                    <option v-for="d in devices" :key="d.id">{{ d.id }}</option>
+                  </select>
+                </label>
+                <label>
+                  Kịch bản
+                  <select v-model="currentScenario">
+                    <option value="normal">Bình thường</option>
+                    <option value="leak">Rò khí</option>
+                  </select>
+                </label>
+                <label>
+                  Tốc độ
+                  <select v-model.number="playbackSpeed">
+                    <option v-for="n in [1, 2, 5]" :key="n" :value="n">{{ n }}×</option>
+                  </select>
+                </label>
+              </div>
+              <div class="flex flex-wrap items-center gap-3">
+                <button class="button primary" @click="isRunning ? pause() : play(deviceId)">
+                  {{ isRunning ? 'Tạm dừng' : 'Chạy mô phỏng' }}
+                </button>
+                <button class="button" @click="reset(deviceId)">Chạy lại</button>
+              </div>
+            </div>
+            <div class="simulation-status">
+              <strong>{{ formatTime(session.elapsed, true) }}</strong>
+              <span>
+                {{ session.elapsed >= SIMULATION_DURATION ? 'Đã hoàn tất 15 phút' : isRunning ? 'Đang chạy' : 'Đang tạm dừng' }}
+                · 1 giây thực = {{ 5 * playbackSpeed }} giây mô phỏng
+              </span>
+              <span class="badge" :class="currentScenario === 'leak' && session.elapsed >= LEAK_START ? 'amber' : 'green'">
+                {{ currentScenario === 'leak' && session.elapsed >= LEAK_START ? 'Đang rò khí' : 'Bình thường' }}
+                · {{ latestSimSample.loaded ? 'Động cơ nén' : 'Động cơ nghỉ' }}
+              </span>
+            </div>
+            <p class="caption">
+              {{ currentScenario === 'leak' ? 'Rò khí bắt đầu tại 01:00. Vạch cam đánh dấu thời điểm bắt đầu.' : 'Chu kỳ nạp và tiêu thụ khí bình thường.' }}
+              Đổi thiết bị hoặc kịch bản sẽ đưa mô phỏng về đầu.
+            </p>
+          </section>
+          <DeviceSensors
+            :samples="session.samples"
+            :start="Math.max(-300, session.elapsed - 900)"
+            :end="Math.max(60, session.elapsed)"
+            :marker="currentScenario === 'leak' && session.elapsed >= LEAK_START ? LEAK_START : null"
+            relative
+          />
+        </template>
+
+        <!-- VIEW: Các view phụ (Approvals, History, Workspace, Knowledge) -->
+        <template v-else-if="currentView === 'approvals'">
+          <div class="page-heading">
+            <div>
+              <h1>Đề xuất chờ duyệt</h1>
+              <p>Xem bằng chứng và quyết định phương án trước khi giao việc.</p>
+            </div>
+          </div>
+          <div class="grid min-w-0 content-start gap-[18px]">
+            <section v-for="a in pendingIncidents" :key="a.id" class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+              <div class="flex flex-wrap items-center gap-3 justify-between">
+                <h2>{{ a.machine }} / {{ a.id }} · Dây chuyền {{ a.line }}</h2>
+                <span class="badge" :class="a.risk === 'Cao' ? 'red' : 'amber'">{{ a.risk }}</span>
+              </div>
+              <p>{{ a.title }}</p>
+              <div class="flex flex-wrap items-center gap-3 justify-between">
+                <small>Chờ duyệt từ {{ a.time }}</small>
+                <button class="button primary" @click="handleOpenIncident(a.id, 'approval')">Xem & quyết định →</button>
+              </div>
+            </section>
+            <section v-if="!pendingIncidents.length" class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5 p-7 text-center text-slate-500">Đã xử lý hết đề xuất chờ duyệt.</section>
+          </div>
+        </template>
+
+        <template v-else-if="currentView === 'history'">
+          <div class="page-heading">
+            <div>
+              <h1>Lịch sử xử lý</h1>
+              <p>Theo dõi quyết định, người thực hiện và các lần phân tích lại.</p>
+            </div>
+          </div>
+          <AlertTable :incidents="incidentsList" @select="handleOpenIncident($event, 'timeline')" />
+        </template>
+
+        <IncidentWorkspace
+          v-else-if="currentView === 'incident'"
+          :key="selectedIncident.id"
+          :incident="selectedIncident"
+          :initial-tab="incidentTab"
+          @device="handleOpenDevice"
+          @back="navigateTo('alerts')"
+          @document="handleOpenDocument"
+        />
+
+        <template v-else-if="currentView === 'knowledge'">
+          <div class="page-heading">
+            <div>
+              <h1>Tài liệu kỹ thuật</h1>
+              <p>Nguồn tham chiếu minh họa cho bước phân tích và đề xuất.</p>
+            </div>
+          </div>
+          <div class="grid gap-5 min-[801px]:grid-cols-2">
+            <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+              <h2>SOP-07 · Kiểm tra khí nén</h2>
+              <p>Quy trình thao tác chuẩn (SOP) · Bản mẫu</p>
+              <button class="source" @click="handleOpenDocument('sop')">Mở tài liệu ↗</button>
+            </section>
+            <section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+              <h2>SC-011 · Sự cố tham khảo</h2>
+              <p>Hồ sơ bảo trì · Bản mẫu</p>
+              <button class="source" @click="handleOpenDocument('case')">Xem hồ sơ ↗</button>
+            </section>
+          </div>
+        </template>
+
+        <footer>
+          <span>FactoryDoctor · Nhóm A1</span>
+          <span>Dữ liệu giả lập · Thao tác chỉ lưu trong phiên hiện tại</span>
+        </footer>
+      </main>
+    </div>
+
+    <!-- Modal Tài liệu -->
+    <dialog ref="documentDialogRef" aria-labelledby="document-title">
+      <h2 id="document-title">
+        {{ documentType === 'sop' ? 'SOP-07 · Quy trình mẫu' : 'SC-011 · Hồ sơ mẫu' }}
+      </h2>
+      <p class="badge amber">Tài liệu giả lập để duyệt UI</p>
+
+      <template v-if="documentType === 'sop'">
+        <p>Phạm vi: kiểm tra dấu hiệu bất thường của hệ thống khí nén.</p>
+        <p>Người thực hiện: kỹ thuật viên được phân công, tham chiếu quy trình bảo trì đã phê duyệt tại nhà máy.</p>
+        <p>Đầu ra: kết quả kiểm tra, nguyên nhân xác nhận, ghi nhận trước/sau và người xác nhận.</p>
+      </template>
+      <template v-else>
+        <p>Máy APU-03: áp suất giảm và chu kỳ nén tăng. Hồ sơ mẫu ghi nhận kiểm tra hiện trường, xử lý theo quy trình và theo dõi lại 20 phút.</p>
+        <p>Đây không phải nhật ký lỗi thật của MetroPT-3.</p>
+      </template>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button class="button" @click="documentDialogRef.close()">Đóng</button>
+      </div>
+    </dialog>
+  </div>
+</template>
+</file>
+
+<file path="README.md">
+# DENSO A1 — FactoryDoctor
+
+Dashboard Vue 3 + Tailwind giám sát nhiều máy nén khí, theo concept nền sáng đã duyệt.
+
+## Chạy project
+
+Project Vue nằm ngay tại thư mục gốc của repo (không cần `cd frontend`). Dùng Node.js 22.12 trở lên.
+
+```bash
+npm install
+npm run dev
+```
+
+Mở địa chỉ Vite in trong terminal, thường là http://localhost:5173.
+
+```bash
+npm run build
+node --test tests/*.test.js
+```
+
+## Các màn hình
+
+- **Tổng quan / Thiết bị:** 24 máy trong 4 dây chuyền. Bấm bất kỳ máy nào để xem cảm biến.
+- **Theo dõi thiết bị:** 7 thông số đo, 8 tín hiệu 0/1, cửa sổ 15/30/60 phút. Ba biểu đồ có chung trục thời gian và con trỏ; có thể đổi cảm biến thứ ba.
+- **Mô phỏng:** Bình thường / Rò khí, Chạy / Tạm dừng / Chạy lại, tốc độ 1× / 2× / 5×. Ở 1×, mỗi giây thực tiến 5 giây mô phỏng. Rò khí bắt đầu tại 01:00 và phiên chạy dừng ở 15:00. Đổi kịch bản hoặc thiết bị đặt lại phiên; rời màn hình sẽ tạm dừng.
+- **Cảnh báo:** tìm kiếm, lọc theo dây chuyền, mức độ, trạng thái.
+- **Chi tiết sự cố:** cảm biến, điểm bất thường minh họa, tóm tắt bằng chứng, tài liệu, phương án xử lý.
+- **Phê duyệt:** duyệt / từ chối / chỉnh sửa, ghi chú, hộp xác nhận.
+- **Sau xử lý:** xác nhận đã thực hiện, tiến thời gian theo dõi 20 phút bằng nút demo, đóng sự cố hoặc yêu cầu phân tích lại.
+- **Lịch sử / Tài liệu:** nhật ký quyết định trong phiên và tài liệu minh họa.
+
+Có thể mở trực tiếp `/#device/APU-09`, `/#simulation/APU-09`, `/#incident/SC-024/approval`. Menu và các màn hình dùng hash để nút Back/Forward của trình duyệt hoạt động mà không cần cấu hình chuyển tiếp phía server.
+
+## Cấu trúc chính
+
+- `src/App.vue`: điều hướng, màn hình tổng quan và trạng thái dùng chung.
+- `src/components/DeviceSensors.vue`: các thẻ cảm biến, trạng thái và ba biểu đồ.
+- `src/components/SensorPanel.vue`: biểu đồ VueApexCharts, đồng bộ con trỏ và zoom.
+- `src/components/FleetMap.vue`, `AlertTable.vue`: danh sách thiết bị và cảnh báo.
+- `src/components/IncidentWorkspace.vue`: chi tiết, phê duyệt, theo dõi và lịch sử sự cố.
+- `src/mock-data/simulation.js`: sinh tất cả cảm biến từ cùng một trạng thái máy.
+- `src/mock-data/useSimulation.js`: quản lý timer; dọn timer khi rời màn hình hoặc hủy component.
+- `src/mock-data/incidents.js`: trạng thái và các điều kiện chuyển bước xử lý sự cố.
+- `src/style.css`: giao diện sáng, responsive bằng CSS và Tailwind.
+
+## Phạm vi dữ liệu
+
+Đây là bản demo frontend, **chưa kết nối FastAPI, thiết bị, mô hình ML hoặc AI**. Không gửi lệnh điều khiển ra ngoài. Các thao tác phê duyệt/lịch sử chỉ tồn tại trong bộ nhớ của phiên; tải lại trang sẽ khởi tạo dữ liệu mẫu.
+
+Tên cột theo MetroPT-3, gồm `DV_eletric` theo cách viết của dataset. Giá trị số, kịch bản, điểm bất thường và tài liệu đều là giả lập; điểm bất thường không phải xác suất lỗi. Mô phỏng dùng quy tắc nạp/tiêu thụ khí đơn giản, chưa hiệu chỉnh vật lý. Các bit 0/1 không tự biểu thị tốt/xấu. Ngưỡng và loại lỗi ở demo không được suy rộng sang máy thật.
+
+Các KPI lịch sử 18 ca, 89% và 4.2 phút là số liệu mẫu; 89% tính trên 16/18 ca trước phiên demo. Khi nối backend, thay nguồn mẫu bằng dữ liệu server và lưu quyết định/lịch sử có xác thực.
+
+## Tailwind CSS và VueApexCharts
+
+Tailwind v4 được cấu hình tại `vite.config.js` (`@tailwindcss/vite`) và `src/style.css` (`@import "tailwindcss"`). Các component hiện dùng utility trực tiếp, ví dụ:
+
+```html
+<section class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 lg:p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">...</div>
+</section>
+```
+
+Các style riêng như sidebar, timeline, trạng thái được giữ trong `@layer components` để class Tailwind có thể ghi đè. Không cần thêm `tailwind.config.js` cho cấu hình v4 này.
+
+Biểu đồ dùng `vue3-apexcharts` dành cho Vue 3, cùng `apexcharts`. `SensorPanel.vue` import component `VueApexCharts` trực tiếp, không đăng ký toàn cục.
+
+Luồng biểu đồ:
+
+1. `mock-data/simulation.js` sinh mẫu.
+2. `mock-data/useSimulation.js` cập nhật `session` mỗi giây.
+3. `App.vue` truyền `session.samples` xuống `DeviceSensors.vue`.
+4. `DeviceSensors.vue` tạo group riêng cho ba biểu đồ và truyền xuống `SensorPanel.vue`.
+5. `utils/sensorChart.js` chuyển mẫu thành `{ x: time, y: value }`, cấu hình trục, tooltip và vạch bất thường.
+6. `VueApexCharts` tự cập nhật khi `series` hoặc `options` thay đổi.
+
+Mỗi biểu đồ có ID riêng; ba biểu đồ trong cùng cụm chia sẻ `chart.group` và độ rộng nhãn trục Y để đồng bộ hover/zoom. Hai cụm trước/sau xử lý dùng group khác nhau. Nút zoom/pan/reset do ApexCharts cung cấp. Các giá trị đầu biểu đồ đồng bộ theo mẫu được trỏ tới.
+
+Bản cập nhật cũng đồng bộ tên `isRunning`, `currentScenario`, `playbackSpeed` giữa `App.vue` và `useSimulation.js`, sửa đường dẫn test sang `src/mock-data`.
+
+Sau khi cập nhật source, chạy tại thư mục gốc repo:
+
+```bash
+npm install
+npm run dev
+```
+
+Kiểm tra:
+
+```bash
+npm test
+npm run build
+```
+
+Tài liệu: [Tailwind + Vite](https://tailwindcss.com/docs/installation/using-vite), [VueApexCharts cho Vue 3](https://apexcharts.com/docs/vue-charts/), [Biểu đồ đồng bộ](https://apexcharts.com/docs/chart-types/synchronized-charts/).
+</file>
+
+</files>

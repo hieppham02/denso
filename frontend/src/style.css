@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', 'Segoe UI', Arial, sans-serif;
+}
+
+@layer base {
+  :root {
+    font-family: var(--font-sans);
+    color-scheme: light;
+  }
+
+  button, input, select, textarea {
+    font: inherit;
+  }
+}
